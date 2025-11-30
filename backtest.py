@@ -347,7 +347,7 @@ def main():
     backtester = Backtester(initial_capital=INITIAL_CAPITAL_MIN)
     
     # 백테스트 설정
-    symbol = TARGET_SYMBOLS[6]  # 첫 번째 심볼
+    symbol = TARGET_SYMBOLS[2] # 첫 번째 심볼
     start_date = "2024-01-01"   # 시작 날짜
     end_date = "2025-11-29"     # 종료 날짜
     interval = "1h"              # 데이터 간격
