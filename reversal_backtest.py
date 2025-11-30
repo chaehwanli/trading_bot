@@ -332,7 +332,7 @@ def main():
     
     start_date = "2024-11-01"
     end_date = "2025-11-29"
-    interval = "4h"
+    interval = "1h"
     
     print(f"\n🚀 전환 매매 전략 백테스트 시작")
     print(f"   원본 주식: {original_symbol}")
