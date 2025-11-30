@@ -110,3 +110,61 @@ LOG_FILE = "trading_bot.log"
 PAPER_TRADING = True  # Paper trading 모드
 DRY_RUN = False       # 실제 주문 없이 시뮬레이션만
 
+# ========== 전환 매매 전략 파라미터 (Reverse/Flip Trading Strategy) ==========
+
+# 1. 기본 거래 파라미터
+REVERSAL_SYMBOL = "TSLA"  # 거래 종목 (원본 주식)
+REVERSAL_POSITION_TYPE = "NONE"  # 현재 포지션 상태: LONG, SHORT, NONE
+REVERSAL_CAPITAL = 2000  # 전체 투자 시드 (USD)
+
+# 2. 리스크 관리 파라미터
+REVERSAL_STOP_LOSS_RATE = -0.02  # 손절 비율 (-2%)
+REVERSAL_TAKE_PROFIT_RATE = 0.08  # 익절 비율 (+8%)
+REVERSAL_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
+REVERSAL_MAX_DRAWDOWN = 0.05  # 허용 최대 자본 손실률 (5%)
+REVERSAL_REVERSE_TRIGGER = True  # 손절 후 반대 포지션 진입 트리거
+REVERSAL_TRAILING_STOP = True  # 변동성 추종형 손절 설정
+
+# 3. 시장 데이터 및 조건 파라미터
+REVERSAL_LOOKBACK_WINDOW = 10  # 분석할 과거 데이터 일수
+REVERSAL_VOLATILITY_THRESHOLD = 0.03  # 변동성 기준 (3%)
+REVERSAL_PRICE_MOMENTUM = 0.02  # 가격 모멘텀 (전일 대비 상승률 2%)
+REVERSAL_VOLUME_THRESHOLD = 1.5  # 거래량 기준치 (1.5배)
+REVERSAL_MARKET_SENTIMENT_INDEX = 0.0  # 시장 심리지수 (-0.3 ~ +0.3)
+
+# 4. 전환 로직 파라미터
+REVERSAL_REVERSE_MODE = "full"  # 전환 방식: 'full'(전체 반전), 'partial'(부분 반전)
+REVERSAL_REVERSE_DELAY = 60  # 손절 후 반전 진입 지연 시간 (초)
+REVERSAL_REVERSE_CONFIRMATION = True  # 반전 진입 전 추가 확인 조건
+REVERSAL_REVERSE_RISK_FACTOR = 0.8  # 반전시 진입 자본 비율 (기존보다 80%)
+REVERSAL_COOLDOWN_PERIOD = 1  # 반전 후 추가 거래 금지 기간 (일)
+REVERSAL_REVERSAL_LIMIT = 2  # 하루 최대 전환 횟수
+
+# 5. 로그 및 모니터링 파라미터
+REVERSAL_LOG_LEVEL = "INFO"  # 로그 상세도: DEBUG, INFO, WARN
+REVERSAL_ALERT_CHANNEL = None  # 알림 수단: Telegram, Slack 등
+REVERSAL_RECORD_TRADES = True  # 거래 기록 저장 여부
+
+# 전환 매매 전략 파라미터 딕셔너리 (편의용)
+REVERSAL_STRATEGY_PARAMS = {
+    "symbol": REVERSAL_SYMBOL,
+    "capital": REVERSAL_CAPITAL,
+    "stop_loss_rate": REVERSAL_STOP_LOSS_RATE,
+    "take_profit_rate": REVERSAL_TAKE_PROFIT_RATE,
+    "reverse_trigger": REVERSAL_REVERSE_TRIGGER,
+    "reverse_mode": REVERSAL_REVERSE_MODE,
+    "reverse_delay": REVERSAL_REVERSE_DELAY,
+    "reverse_risk_factor": REVERSAL_REVERSE_RISK_FACTOR,
+    "max_hold_days": REVERSAL_MAX_HOLD_DAYS,
+    "lookback_window": REVERSAL_LOOKBACK_WINDOW,
+    "volatility_threshold": REVERSAL_VOLATILITY_THRESHOLD,
+    "cooldown_period": REVERSAL_COOLDOWN_PERIOD,
+    "reversal_limit": REVERSAL_REVERSAL_LIMIT,
+    "max_drawdown": REVERSAL_MAX_DRAWDOWN,
+    "trailing_stop": REVERSAL_TRAILING_STOP,
+    "reverse_confirmation": REVERSAL_REVERSE_CONFIRMATION,
+    "price_momentum": REVERSAL_PRICE_MOMENTUM,
+    "volume_threshold": REVERSAL_VOLUME_THRESHOLD,
+    "market_sentiment_index": REVERSAL_MARKET_SENTIMENT_INDEX,
+}
+
