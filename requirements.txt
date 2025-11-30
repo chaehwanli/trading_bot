@@ -1,0 +1,23 @@
+# 데이터 수집
+yfinance>=0.2.28
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 기술적 지표
+pandas-ta>=0.3.14b0
+
+# 거래 API (예: Alpaca, Interactive Brokers 등)
+# alpaca-trade-api>=3.0.0
+# ib_insync>=0.9.86
+
+# 스케줄링
+schedule>=1.2.0
+python-dateutil>=2.8.2
+
+# 로깅 및 유틸리티
+python-dotenv>=1.0.0
+pytz>=2023.3
+
+# 테스트
+pytest>=7.4.0
+
