@@ -25,10 +25,13 @@ class TradingScheduler:
             return True
         return False
     
-    def schedule_daily_tasks(self, trading_func, monitoring_func):
+    def schedule_daily_tasks(self, trading_func, monitoring_func, force_close_func):
         """일일 거래 작업 스케줄링"""
         # 거래 시작 시간 (오후 5시)
         schedule.every().day.at("17:00").do(self._start_trading, trading_func)
+        
+        # 새벽 05:00 강제 청산
+        schedule.every().day.at("05:00").do(force_close_func)
         
         # 거래 종료 시간 (새벽 5시)
         schedule.every().day.at("05:00").do(self._end_trading)

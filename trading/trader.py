@@ -8,7 +8,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import (
     API_KEY, API_SECRET, BASE_URL,
     PAPER_TRADING, DRY_RUN,
-    POSITION_SIZE_PCT, MIN_TRADE_AMOUNT
+    POSITION_SIZE_PCT, MIN_TRADE_AMOUNT,
+    EXPECTED_PROFIT_TARGET, TAKE_PROFIT
 )
 from trading.position_manager import PositionManager, Position
 from utils.logger import logger
@@ -39,17 +40,38 @@ class Trader:
     def calculate_position_size(
         self,
         price: float,
-        capital: Optional[float] = None
+        capital: Optional[float] = None,
+        expected_profit: Optional[float] = None
     ) -> float:
-        """포지션 크기 계산"""
+        """
+        포지션 크기 계산
+        
+        Args:
+            price: 진입 가격
+            capital: 사용 가능 자본 (None이면 현재 잔고 사용)
+            expected_profit: 기대수익 금액 (None이면 설정값 사용)
+        
+        Returns:
+            포지션 수량
+        """
         if capital is None:
             capital = self.get_account_balance()
         
-        trade_amount = capital * POSITION_SIZE_PCT
+        if expected_profit is None:
+            expected_profit = EXPECTED_PROFIT_TARGET
         
+        # 기대수익 기준으로 진입 금액 계산
+        # 예: 목표수익 $150, target% = 8% → 진입금액 = 150 / 0.08 = $1875
+        trade_amount = expected_profit / TAKE_PROFIT
+        
+        # 최소 거래 금액 체크
         if trade_amount < MIN_TRADE_AMOUNT:
             logger.warning(f"거래 금액 부족: ${trade_amount:.2f} < ${MIN_TRADE_AMOUNT}")
             return 0.0
+        
+        # 사용 가능 자본 제한
+        max_trade_amount = capital * POSITION_SIZE_PCT
+        trade_amount = min(trade_amount, max_trade_amount)
         
         quantity = trade_amount / price
         return round(quantity, 2)

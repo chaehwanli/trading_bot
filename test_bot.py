@@ -9,7 +9,7 @@ import os
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config.settings import TARGET_SYMBOLS, INITIAL_CAPITAL_MIN, DRY_RUN
+from config.settings import TARGET_SYMBOLS, INITIAL_CAPITAL_MIN, DRY_RUN, get_all_etf_symbols
 from data.data_fetcher import DataFetcher
 from strategy.signal_generator import SignalGenerator, SignalType
 from strategy.indicators import TechnicalIndicators
@@ -21,7 +21,14 @@ def test_data_fetcher():
     print("\n=== 데이터 수집 테스트 ===")
     fetcher = DataFetcher()
     
-    for symbol in TARGET_SYMBOLS[:1]:  # 첫 번째 심볼만 테스트
+    # 첫 번째 원본 주식과 ETF 테스트
+    if TARGET_SYMBOLS:
+        test_item = TARGET_SYMBOLS[0]
+        test_symbols = [test_item["ORIGINAL"], test_item["LONG"], test_item["SHORT"]]
+    else:
+        test_symbols = []
+    
+    for symbol in test_symbols[:1]:  # 첫 번째 심볼만 테스트
         print(f"\n{symbol} 테스트:")
         
         # 실시간 가격
@@ -40,7 +47,12 @@ def test_indicators():
     fetcher = DataFetcher()
     indicators = TechnicalIndicators()
     
-    symbol = TARGET_SYMBOLS[0]
+    # 첫 번째 원본 주식 사용
+    if TARGET_SYMBOLS:
+        test_item = TARGET_SYMBOLS[0]
+        symbol = test_item["ORIGINAL"]  # 원본 주식 코드
+    else:
+        symbol = "TSLA"  # 기본값
     data = fetcher.get_historical_data(symbol, period="1mo", interval="1h")
     
     if data is not None:
@@ -62,7 +74,12 @@ def test_signal_generator():
     fetcher = DataFetcher()
     signal_gen = SignalGenerator()
     
-    symbol = TARGET_SYMBOLS[0]
+    # 첫 번째 원본 주식 사용
+    if TARGET_SYMBOLS:
+        test_item = TARGET_SYMBOLS[0]
+        symbol = test_item["ORIGINAL"]  # 원본 주식 코드
+    else:
+        symbol = "TSLA"  # 기본값
     data = fetcher.get_intraday_data(symbol, interval="5m")
     
     if data is not None:
@@ -84,7 +101,12 @@ def test_trader():
     print(f"초기 자본: ${trader.capital:.2f}")
     print(f"사용 가능 자본: ${trader.get_account_balance():.2f}")
     
-    symbol = TARGET_SYMBOLS[0]
+    # 첫 번째 원본 주식 사용
+    if TARGET_SYMBOLS:
+        test_item = TARGET_SYMBOLS[0]
+        symbol = test_item["ORIGINAL"]  # 원본 주식 코드
+    else:
+        symbol = "TSLA"  # 기본값
     fetcher = DataFetcher()
     price = fetcher.get_realtime_price(symbol)
     
@@ -102,7 +124,12 @@ def test_full_workflow():
     signal_gen = SignalGenerator()
     trader = Trader(initial_capital=INITIAL_CAPITAL_MIN)
     
-    symbol = TARGET_SYMBOLS[0]
+    # 첫 번째 원본 주식 사용
+    if TARGET_SYMBOLS:
+        test_item = TARGET_SYMBOLS[0]
+        symbol = test_item["ORIGINAL"]  # 원본 주식 코드
+    else:
+        symbol = "TSLA"  # 기본값
     
     # 1. 데이터 수집
     print(f"\n1. {symbol} 데이터 수집 중...")

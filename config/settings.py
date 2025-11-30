@@ -13,33 +13,81 @@ API_SECRET = os.getenv("API_SECRET", "")
 BASE_URL = os.getenv("BASE_URL", "https://paper-api.alpaca.markets")  # Paper trading URL
 
 # ========== 거래 대상 ==========
+# 원본 주식 코드를 기준으로 2x ETF LONG/SHORT를 스위칭
+# 구조: {"ORIGINAL": 원본주식, "LONG": 2x 롱 ETF, "SHORT": 2x 숏 ETF}
 TARGET_SYMBOLS = [
-    "TQQQ",  # 0 - NASDAQ-100 3배 레버리지 (2배 대신 3배 사용 가능)
-    "SQQQ",  # 1- NASDAQ-100 역방향 3배 레버리지
-    "TSLL",  # 2- Direxion Daily TSLA Bull 2X Shares
-    "TSLZ",  # 3- T-Rex 2x Inverse Tesla Daily Target ETF
-    "NVDX",  # 4- T-Rex 2X Long Nvidia Daily Target ETF
-    "NVDQ",  # 5- T-Rex 2X Inverse Nvidia Daily Target ETF
-    "AMDL"   # 6- GraniteShares 2x Long AMD Daily ETF
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Tesla
+        "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "SHORT": "TSLZ"      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
+    },
+    {
+        "ORIGINAL": "NVDA",  # 원본 주식: Nvidia
+        "LONG": "NVDX",      # 2x 롱 ETF: T-Rex 2X Long Nvidia Daily Target ETF
+        "SHORT": "NVDQ"      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
+    },
+    # 추가 종목 예시:
+    # {
+    #     "ORIGINAL": "AMD",
+    #     "LONG": "AMDL",      # GraniteShares 2x Long AMD Daily ETF
+    #     "SHORT": "AMDS"      # (숏 ETF가 있다면)
+    # }
 ]
+
+# 편의 함수: 모든 ETF 심볼 리스트 반환
+def get_all_etf_symbols():
+    """모든 ETF 심볼 리스트 반환 (LONG + SHORT)"""
+    symbols = []
+    for item in TARGET_SYMBOLS:
+        symbols.append(item["LONG"])
+        symbols.append(item["SHORT"])
+    return symbols
+
+# 편의 함수: 원본 주식 코드 리스트 반환
+def get_original_symbols():
+    """원본 주식 코드 리스트 반환"""
+    return [item["ORIGINAL"] for item in TARGET_SYMBOLS]
+
+# 편의 함수: 원본 주식으로 ETF 정보 찾기
+def get_etf_by_original(original_symbol: str):
+    """원본 주식 코드로 ETF 정보 찾기"""
+    for item in TARGET_SYMBOLS:
+        if item["ORIGINAL"] == original_symbol:
+            return item
+    return None
 # ========== 거래 시간 설정 ==========
 TRADING_START_HOUR = 17  # 오후 5시 (한국시간 기준)
 TRADING_END_HOUR = 5     # 새벽 5시 (익일)
 TRADING_TIMEZONE = "Asia/Seoul"
 
 # ========== 손익 기준 ==========
-STOP_LOSS_PCT = -0.03    # -3%
-TAKE_PROFIT_MIN_PCT = 0.06  # +6%
-TAKE_PROFIT_MAX_PCT = 0.07  # +7%
+# 사용자 원안
+STOP_LOSS_PCT = -0.02    # -2% (사용자 원안)
+TAKE_PROFIT_PCT = 0.08   # +8% (사용자 원안)
+
+# 권장 파라미터 (옵션)
+STOP_LOSS_PCT_RECOMMENDED = -0.03    # -3% ~ -4% (슬리피지/레버리지 특성 보정)
+TAKE_PROFIT_PCT_RECOMMENDED = 0.06   # +6% ~ +7%
+
+# 현재 사용할 파라미터 선택
+USE_RECOMMENDED = False  # True면 권장 파라미터 사용
+STOP_LOSS = STOP_LOSS_PCT_RECOMMENDED if USE_RECOMMENDED else STOP_LOSS_PCT
+TAKE_PROFIT = TAKE_PROFIT_PCT_RECOMMENDED if USE_RECOMMENDED else TAKE_PROFIT_PCT
 
 # ========== 자금 관리 ==========
 INITIAL_CAPITAL_MIN = 1200   # $1,200
 INITIAL_CAPITAL_MAX = 2500   # $2,500
 MAX_LOSS_PER_TRADE = 50      # $50
 
+# ========== 포지션 사이징 (기대수익 기준) ==========
+EXPECTED_PROFIT_MIN = 100    # $100 (최소 기대수익)
+EXPECTED_PROFIT_MAX = 200    # $200 (최대 기대수익)
+EXPECTED_PROFIT_TARGET = 150 # $150 (목표 기대수익)
+
 # ========== 포지션 관리 ==========
-MAX_POSITION_HOLD_DAYS = 1.5  # 최대 1.5일
-FORCE_CLOSE_HOUR = 9          # 익일 오전 9시 강제 매도
+MAX_POSITION_HOLD_DAYS = 2.0  # Long 최대 2일 보유
+FORCE_CLOSE_HOUR = 5           # 새벽 05:00 강제 청산 (한국시간)
+SHORT_SAME_DAY_CLOSE = True    # Short 당일 청산 필수
 
 # ========== 기술적 지표 설정 ==========
 RSI_PERIOD = 14
