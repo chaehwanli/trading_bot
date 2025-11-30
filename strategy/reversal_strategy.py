@@ -10,6 +10,7 @@ from enum import Enum
 import sys
 import os
 import time
+from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -437,7 +438,7 @@ class ReversalStrategy:
             return False
         
         max_hold_days = self.params.get("max_hold_days", 2)
-        hold_duration = datetime.now() - self.entry_time
+        hold_duration = datetime.now(timezone.utc) - self.entry_time
         
         if hold_duration.days >= max_hold_days:
             logger.info(f"최대 보유 기간 초과: {hold_duration.days}일")

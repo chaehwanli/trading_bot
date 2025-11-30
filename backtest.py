@@ -418,7 +418,7 @@ def main():
     
     # 백테스트 설정
     # 원본 주식 선택 (예: TSLA 또는 NVDA)
-    target_item = TARGET_SYMBOLS[1] # 첫 번째 항목 (TSLA)
+    target_item = TARGET_SYMBOLS[0] # 첫 번째 항목 (TSLA)
     original_symbol = target_item["ORIGINAL"]  # "TSLA"
     etf_long = target_item["LONG"]   # "TSLL"
     etf_short = target_item["SHORT"] # "TSLZ"

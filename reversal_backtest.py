@@ -313,24 +313,26 @@ class ReversalBacktester:
 
 def main():
     """백테스트 메인 함수"""
+
+    target_item_index = 1
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
-    params["symbol"] = "TSLA"
-    params["capital"] = 2000
+    params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
+    params["capital"] = 1200
     params["reverse_trigger"] = True
     params["reverse_mode"] = "full"
     
     backtester = ReversalBacktester(params=params)
     
     # 백테스트 설정
-    target_item = TARGET_SYMBOLS[0]  # TSLA
+    target_item = TARGET_SYMBOLS[target_item_index]
     original_symbol = target_item["ORIGINAL"]
     etf_long = target_item["LONG"]
     etf_short = target_item["SHORT"]
     
     start_date = "2024-11-01"
     end_date = "2025-11-29"
-    interval = "1h"
+    interval = "4h"
     
     print(f"\n🚀 전환 매매 전략 백테스트 시작")
     print(f"   원본 주식: {original_symbol}")
@@ -357,4 +359,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+    print("백테스트 완료")
