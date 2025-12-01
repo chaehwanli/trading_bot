@@ -441,6 +441,24 @@ class ReversalStrategy:
         hold_duration = datetime.now(timezone.utc) - self.entry_time
         
         if hold_duration.days >= max_hold_days:
+            logger.info(f"self.entry_time: {self.entry_time}")
+            logger.info(f"datetime.now: {hold_duration}")
+            logger.info(f"최대 보유 기간 초과: {hold_duration.days}일")
+            return True
+        
+        return False
+
+    def check_max_hold_days2(
+        self,
+        current_time: datetime) -> bool:
+        """최대 보유 기간 확인"""
+        if not self.entry_time:
+            return False
+        
+        max_hold_days = self.params.get("max_hold_days", 2)
+        hold_duration = current_time(timezone.utc) - self.entry_time
+        
+        if hold_duration.days >= max_hold_days:
             logger.info(f"최대 보유 기간 초과: {hold_duration.days}일")
             return True
         
