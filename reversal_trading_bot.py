@@ -73,7 +73,7 @@ class ReversalTradingBot:
                     self._close_position(current_price, exit_reason)
             
             # 최대 보유 기간 확인
-            if self.strategy.check_max_hold_days():
+            if self.strategy.check_max_hold_days2(datetime.now()):
                 self._close_position(current_price, "FORCE_CLOSE")
             
             # 최대 자본 손실률 확인
@@ -113,6 +113,7 @@ class ReversalTradingBot:
                 original_data=original_data,
                 etf_long_price=etf_long_price,
                 etf_short_price=etf_short_price,
+                current_time=datetime.now(),
                 reason=reason
             )
             

@@ -157,7 +157,7 @@ class ReversalBacktester:
                 if exit_reason:
                     # 손절인 경우 전환 매매
                     if exit_reason == "STOP_LOSS" and self.strategy.params.get("reverse_trigger", True):
-                        if self.strategy.can_reverse():
+                        if self.strategy.can_reverse2(current_time):
                             result = self.strategy.execute_reversal(
                                 original_symbol=original_symbol,
                                 etf_long=etf_long,
@@ -165,6 +165,7 @@ class ReversalBacktester:
                                 original_data=original_current_data,
                                 etf_long_price=etf_long_price,
                                 etf_short_price=etf_short_price,
+                                current_time=current_time,
                                 reason=f"손절 전환 ({exit_reason})"
                             )
                             if result:
@@ -318,7 +319,7 @@ def main():
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
-    params["capital"] = 12000
+    params["capital"] = 1200
     params["reverse_trigger"] = True
     params["reverse_mode"] = "full"
     
@@ -359,4 +360,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    print("백테스트 완료")

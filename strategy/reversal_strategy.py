@@ -101,7 +101,34 @@ class ReversalStrategy:
             return False
         
         return True
+
+    def reset_daily_count2(self, current_time: datetime):
+        """일일 전환 횟수 리셋"""
+        #today = datetime.now().date()
+        if self.last_reversal_date != current_time:
+            self.daily_reversal_count = 0
+            self.last_reversal_date = current_time
     
+    def can_reverse2(self, current_time: datetime) -> bool:
+        """전환 가능 여부 확인"""
+        self.reset_daily_count2(current_time)
+        
+        # 일일 전환 횟수 제한
+        if self.daily_reversal_count >= self.params.get("reversal_limit", 2):
+            logger.warning(f"일일 전환 횟수 제한 도달: {self.daily_reversal_count}")
+            return False
+        
+        # 쿨다운 기간 확인
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
+        if self.cooldown_until and self.cooldown_until.tzinfo is None:
+            self.cooldown_until = self.cooldown_until.replace(tzinfo=timezone.utc)
+        if self.cooldown_until and current_time < self.cooldown_until:
+            logger.info(f"쿨다운 기간 중: {self.cooldown_until}")
+            return False
+        
+        return True
+
     def calculate_volatility(self, data: pd.DataFrame) -> float:
         """변동성 계산"""
         if len(data) < 2:
@@ -243,12 +270,13 @@ class ReversalStrategy:
         available_capital = self.capital * risk_factor
         
         # 기대수익 기준 계산 (간단화)
-        expected_profit = 150  # 목표 기대수익
+        # expected_profit = 150  # 목표 기대수익
+        expected_profit = available_capital * 0.4  # 목표 기대수익
         take_profit_rate = self.params.get("take_profit_rate", 0.08)
         trade_amount = expected_profit / take_profit_rate
         
         # 사용 가능 자본 제한
-        trade_amount = min(trade_amount, available_capital * 0.95)
+        trade_amount = max(trade_amount, available_capital * 0.95)
         
         if trade_amount < 100:  # 최소 거래 금액
             return 0.0
@@ -264,6 +292,7 @@ class ReversalStrategy:
         original_data: pd.DataFrame,
         etf_long_price: float,
         etf_short_price: float,
+        current_time: datetime,
         reason: str = "전환 매매"
     ) -> Optional[Dict]:
         """
@@ -281,7 +310,7 @@ class ReversalStrategy:
         Returns:
             거래 결과 딕셔너리 또는 None
         """
-        if not self.can_reverse():
+        if not self.can_reverse2(current_time):
             return None
         
         # 현재 포지션 확인
