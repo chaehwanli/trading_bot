@@ -314,7 +314,7 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 1
+    target_item_index = 0
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
