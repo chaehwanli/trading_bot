@@ -177,8 +177,8 @@ class ReversalBacktester:
                         self._close_position(current_time, current_etf_price, exit_reason)
                 
                 # 최대 보유 기간 확인
-                #elif self.strategy.check_max_hold_days():
-                #    self._close_position(current_time, current_etf_price, "FORCE_CLOSE")
+                elif self.strategy.check_max_hold_days2(current_time):
+                    self._close_position(current_time, current_etf_price, "FORCE_CLOSE")
             
             # 자본 추적
             if self.strategy.current_position and self.strategy.entry_price:
@@ -314,11 +314,11 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 0
+    target_item_index = 1
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
-    params["capital"] = 1200
+    params["capital"] = 12000
     params["reverse_trigger"] = True
     params["reverse_mode"] = "full"
     
@@ -332,7 +332,7 @@ def main():
     
     start_date = "2024-11-01"
     end_date = "2025-11-29"
-    interval = "1h"
+    interval = "2m"
     
     print(f"\n🚀 전환 매매 전략 백테스트 시작")
     print(f"   원본 주식: {original_symbol}")
