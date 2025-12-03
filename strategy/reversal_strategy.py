@@ -2,6 +2,7 @@
 전환 매매 전략 (Reverse/Flip Trading Strategy)
 손실 포지션을 반대로 뒤집는 전략을 파라미터 기반으로 구현
 """
+from pickle import TRUE
 import pandas as pd
 import numpy as np
 from typing import Optional, Dict, List, Tuple
@@ -271,12 +272,12 @@ class ReversalStrategy:
         
         # 기대수익 기준 계산 (간단화)
         # expected_profit = 150  # 목표 기대수익
-        expected_profit = available_capital * 0.4  # 목표 기대수익
+        expected_profit = available_capital * 0.5  # 목표 기대수익
         take_profit_rate = self.params.get("take_profit_rate", 0.08)
         trade_amount = expected_profit / take_profit_rate
         
         # 사용 가능 자본 제한
-        trade_amount = max(trade_amount, available_capital * 0.95)
+        trade_amount = min(trade_amount, available_capital * 0.95)
         
         if trade_amount < 100:  # 최소 거래 금액
             return 0.0
@@ -305,6 +306,7 @@ class ReversalStrategy:
             original_data: 원본 주식 데이터
             etf_long_price: 롱 ETF 현재가
             etf_short_price: 숏 ETF 현재가
+            current_time: 
             reason: 전환 이유
         
         Returns:
@@ -320,21 +322,23 @@ class ReversalStrategy:
         
         # 반전 확인 조건 체크
         target_side = "SHORT" if self.current_position == "LONG" else "LONG"
-        confirmed, confirm_reason = self.check_reverse_confirmation(original_data, target_side)
+        confirmed = TRUE
+        confirm_reason = "STOP LOSS REVERSE"
+        #confirmed, confirm_reason = self.check_reverse_confirmation(original_data, target_side)
         
-        if not confirmed:
-            logger.info(f"반전 확인 실패: {confirm_reason}")
-            return None
+        #if not confirmed:
+        #    logger.info(f"반전 확인 실패: {confirm_reason}")
+        #    return None
         
         # 시장 조건 확인
-        market_conditions = self.check_market_conditions(
-            original_data, 
-            pd.DataFrame({'close': [etf_long_price], 'volume': [0]}),
-            pd.DataFrame({'close': [etf_short_price], 'volume': [0]})
-        )
+        #market_conditions = self.check_market_conditions(
+        #    original_data, 
+        #    pd.DataFrame({'close': [etf_long_price], 'volume': [0]}),
+        #    pd.DataFrame({'close': [etf_short_price], 'volume': [0]})
+        #)
         
-        if not market_conditions["meets_threshold"]:
-            logger.info(f"시장 조건 미충족: 변동성 {market_conditions['volatility']:.4f}")
+        #if not market_conditions["meets_threshold"]:
+        #    logger.info(f"시장 조건 미충족: 변동성 {market_conditions['volatility']:.4f}")
         
         # 반전 지연 시간 적용
         if self.params.get("reverse_delay", 0) > 0:
@@ -346,17 +350,20 @@ class ReversalStrategy:
         if self.current_etf_symbol and self.entry_price and self.entry_quantity:
             exit_price = etf_long_price if self.current_position == "LONG" else etf_short_price
             
-            if self.current_position == "LONG":
-                pnl_pct = ((exit_price - self.entry_price) / self.entry_price) * 100
-            else:
-                pnl_pct = ((self.entry_price - exit_price) / self.entry_price) * 100
+            pnl_pct = ((exit_price - self.entry_price) / self.entry_price) * 100
+
+            #if self.current_position == "LONG":
+            #    pnl_pct = ((exit_price - self.entry_price) / self.entry_price) * 100
+            #else:
+            #    pnl_pct = ((self.entry_price - exit_price) / self.entry_price) * 100
             
             pnl = self.entry_quantity * self.entry_price * (pnl_pct / 100)
             
             # 청산 기록
             trade_record = {
                 'entry_time': self.entry_time,
-                'exit_time': datetime.now(),
+                #'exit_time': datetime.now(),
+                'exit_time': current_time,
                 'symbol': self.current_etf_symbol,
                 'side': self.current_position,
                 'entry_price': self.entry_price,
@@ -373,7 +380,7 @@ class ReversalStrategy:
             
             logger.info(
                 f"포지션 청산: {self.current_etf_symbol} {self.current_position} "
-                f"@ ${exit_price:.2f} (손익: {pnl_pct:.2f}%)"
+                f"@ ${self.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%)"
             )
         
         # 반대 포지션 진입
@@ -388,7 +395,8 @@ class ReversalStrategy:
             
             # 전환 기록
             reversal_record = {
-                'time': datetime.now(),
+                #'time': datetime.now(),
+                'time': current_time,
                 'from_position': self.current_position,
                 'to_position': target_side,
                 'from_etf': self.current_etf_symbol,
@@ -404,14 +412,17 @@ class ReversalStrategy:
             self.current_position = target_side
             self.current_etf_symbol = target_etf
             self.entry_price = target_price
-            self.entry_time = datetime.now()
+            #self.entry_time = datetime.now()
+            self.entry_time = current_time
             self.entry_quantity = quantity
             
             # 전환 카운트 및 쿨다운 설정
             self.daily_reversal_count += 1
-            self.last_reversal_time = datetime.now()
+            #self.last_reversal_time = datetime.now()
+            self.last_reversal_time = current_time
             cooldown_days = self.params.get("cooldown_period", 1)
-            self.cooldown_until = datetime.now() + timedelta(days=cooldown_days)
+            #self.cooldown_until = datetime.now() + timedelta(days=cooldown_days)
+            self.cooldown_until = current_time + timedelta(days=cooldown_days)
             
             logger.info(
                 f"🔄 전환 매매 실행: {self.current_etf_symbol} -> {target_etf} "
@@ -435,10 +446,11 @@ class ReversalStrategy:
         if not self.current_position or not self.entry_price:
             return None
         
-        if self.current_position == "LONG":
-            pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
-        else:  # SHORT
-            pnl_pct = ((self.entry_price - current_price) / self.entry_price) * 100
+        pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
+        #if self.current_position == "LONG":
+        #    pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
+        #else:  # SHORT
+        #    pnl_pct = ((self.entry_price - current_price) / self.entry_price) * 100
         
         stop_loss_rate = self.params.get("stop_loss_rate", -0.02) * 100
         take_profit_rate = self.params.get("take_profit_rate", 0.08) * 100
@@ -466,7 +478,10 @@ class ReversalStrategy:
         if not self.entry_time:
             return False
         
-        max_hold_days = self.params.get("max_hold_days", 2)
+        if self.current_position is "LONG":    
+            max_hold_days = self.params.get("long_max_hold_days", 2)
+        else:
+            max_hold_days = self.params.get("short_max_hold_days", 1)
         hold_duration = datetime.now(timezone.utc) - self.entry_time
         
         if hold_duration.days >= max_hold_days:
@@ -490,8 +505,11 @@ class ReversalStrategy:
             self.entry_time = self.entry_time.replace(tzinfo=timezone.utc)
         else:
             self.entry_time = self.entry_time.replace(tzinfo=timezone.utc)
-            
-        max_hold_days = self.params.get("max_hold_days", 2)
+
+        if self.current_position is "LONG":    
+            max_hold_days = self.params.get("long_max_hold_days", 2)
+        else:
+            max_hold_days = self.params.get("short_max_hold_days", 1)
         hold_duration = current_time - self.entry_time
         
         if hold_duration.days >= max_hold_days:

@@ -129,7 +129,7 @@ class SignalGenerator:
                 return SignalType.BUY, 0.8, "RSI 과매도 + MACD 상승 전환"
             
             # 매수 신호: RSI 중립 + MACD 강한 상승
-            if rsi_neutral and macd_bullish and histogram > 0.5:
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
                 return SignalType.BUY, 0.6, "MACD 강한 상승 모멘텀"
             
             # 매도 신호: RSI 과매수 + MACD 하락 전환
@@ -137,7 +137,7 @@ class SignalGenerator:
                 return SignalType.SELL, 0.8, "RSI 과매수 + MACD 하락 전환"
             
             # 매도 신호: RSI 중립 + MACD 강한 하락
-            if rsi_neutral and macd_bearish and histogram < -0.5:
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
                 return SignalType.SELL, 0.6, "MACD 강한 하락 모멘텀"
         
         # 현재 LONG 포지션인 경우

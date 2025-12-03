@@ -8,6 +8,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.logger import logger
+from config.settings import (
+    RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL
+)
 
 class TechnicalIndicators:
     """기술적 지표 계산 클래스"""
@@ -70,7 +74,7 @@ class TechnicalIndicators:
             return None
     
     @staticmethod
-    def get_latest_rsi(data: pd.DataFrame, period: int = 14) -> Optional[float]:
+    def get_latest_rsi(data: pd.DataFrame, period: int = RSI_PERIOD) -> Optional[float]:
         """최신 RSI 값 반환"""
         rsi = TechnicalIndicators.calculate_rsi(data, period)
         if rsi is not None and not rsi.empty:

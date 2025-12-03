@@ -109,6 +109,7 @@ class ReversalBacktester:
                 continue
             
             # 신호 생성
+            #print(f"📈 신호 생성 시도 [{current_time.strftime('%Y-%m-%d %H:%M')}] ")
             signal_data = self.strategy.signal_generator.generate_signal(
                 original_current_data,
                 self.strategy.current_position
@@ -229,10 +230,11 @@ class ReversalBacktester:
         if not self.strategy.current_position or not self.strategy.entry_price:
             return
         
-        if self.strategy.current_position == "LONG":
-            pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
-        else:
-            pnl_pct = ((self.strategy.entry_price - exit_price) / self.strategy.entry_price) * 100
+        pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
+        #if self.strategy.current_position == "LONG":
+        #    pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
+        #else:
+        #    pnl_pct = ((self.strategy.entry_price - exit_price) / self.strategy.entry_price) * 100
         
         pnl = self.strategy.entry_quantity * self.strategy.entry_price * (pnl_pct / 100)
         self.strategy.capital += self.strategy.entry_quantity * self.strategy.entry_price + pnl
@@ -251,7 +253,7 @@ class ReversalBacktester:
         }
         self.strategy.trade_history.append(trade_record)
         
-        print(f"🔒 [{exit_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} {self.strategy.current_position} 청산 @ ${exit_price:.2f} (손익: {pnl_pct:.2f}%) - {reason}")
+        print(f"🔒 [{exit_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} {self.strategy.current_position} 청산 @ ${self.strategy.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%) - {reason}")
         
         # 포지션 초기화
         self.strategy.current_position = None
@@ -315,7 +317,7 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 0
+    target_item_index = 1
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]

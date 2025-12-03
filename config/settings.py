@@ -86,11 +86,11 @@ EXPECTED_PROFIT_TARGET = 150 # $150 (목표 기대수익)
 
 # ========== 포지션 관리 ==========
 MAX_POSITION_HOLD_DAYS = 2.0  # Long 최대 2일 보유
-FORCE_CLOSE_HOUR = 5           # 새벽 05:00 강제 청산 (한국시간)
+FORCE_CLOSE_HOUR = 7           # 새벽 05:00 강제 청산 (한국시간)
 SHORT_SAME_DAY_CLOSE = True    # Short 당일 청산 필수
 
 # ========== 기술적 지표 설정 ==========
-RSI_PERIOD = 14
+RSI_PERIOD = 5
 RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 
@@ -118,23 +118,25 @@ REVERSAL_POSITION_TYPE = "NONE"  # 현재 포지션 상태: LONG, SHORT, NONE
 REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
-REVERSAL_STOP_LOSS_RATE = -0.04  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.5  # 익절 비율 (+8%)
-REVERSAL_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
+REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
+REVERSAL_TAKE_PROFIT_RATE = 0.1  # 익절 비율 (+8%)
+REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
+REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
+REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
 REVERSAL_MAX_DRAWDOWN = 0.1  # 허용 최대 자본 손실률 (5%)
 REVERSAL_REVERSE_TRIGGER = True  # 손절 후 반대 포지션 진입 트리거
 REVERSAL_TRAILING_STOP = True  # 변동성 추종형 손절 설정
 
 # 3. 시장 데이터 및 조건 파라미터
-REVERSAL_LOOKBACK_WINDOW = 10  # 분석할 과거 데이터 일수
-REVERSAL_VOLATILITY_THRESHOLD = 0.08  # 변동성 기준 (3%)
+REVERSAL_LOOKBACK_WINDOW = 5  # 분석할 과거 데이터 일수
+REVERSAL_VOLATILITY_THRESHOLD = 0.1  # 변동성 기준 (3%)
 REVERSAL_PRICE_MOMENTUM = 0.02  # 가격 모멘텀 (전일 대비 상승률 2%)
-REVERSAL_VOLUME_THRESHOLD = 1.5  # 거래량 기준치 (1.5배)
+REVERSAL_VOLUME_THRESHOLD = 0.4  # 거래량 기준치 (1.5배)
 REVERSAL_MARKET_SENTIMENT_INDEX = 0.0  # 시장 심리지수 (-0.3 ~ +0.3)
 
 # 4. 전환 로직 파라미터
 REVERSAL_REVERSE_MODE = "full"  # 전환 방식: 'full'(전체 반전), 'partial'(부분 반전)
-REVERSAL_REVERSE_DELAY = 10  # 손절 후 반전 진입 지연 시간 (초)
+REVERSAL_REVERSE_DELAY = 5  # 손절 후 반전 진입 지연 시간 (초)
 REVERSAL_REVERSE_CONFIRMATION = True  # 반전 진입 전 추가 확인 조건
 REVERSAL_REVERSE_RISK_FACTOR = 0.8  # 반전시 진입 자본 비율 (기존보다 80%)
 REVERSAL_COOLDOWN_PERIOD = 1  # 반전 후 추가 거래 금지 기간 (일)
@@ -155,7 +157,8 @@ REVERSAL_STRATEGY_PARAMS = {
     "reverse_mode": REVERSAL_REVERSE_MODE,
     "reverse_delay": REVERSAL_REVERSE_DELAY,
     "reverse_risk_factor": REVERSAL_REVERSE_RISK_FACTOR,
-    "max_hold_days": REVERSAL_MAX_HOLD_DAYS,
+    "long_max_hold_days": REVERSAL_LOMG_MAX_HOLD_DAYS,
+    "short_max_hold_days": REVERSAL_SHORT_MAX_HOLD_DAYS,
     "lookback_window": REVERSAL_LOOKBACK_WINDOW,
     "volatility_threshold": REVERSAL_VOLATILITY_THRESHOLD,
     "cooldown_period": REVERSAL_COOLDOWN_PERIOD,

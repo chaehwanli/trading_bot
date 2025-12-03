@@ -83,7 +83,31 @@ class Position:
             return True
         
         return False
-    
+
+    def should_force_close2(self, current_time: datetime) -> bool:
+        """강제 청산 조건 확인 (시간 기준)"""
+        now = current_time
+        hold_duration = now - self.entry_time
+        
+        # Short 포지션: 당일 청산 필수
+        if self.side == "SHORT" and SHORT_SAME_DAY_CLOSE:
+            if now.date() > self.entry_time.date():
+                return True  # 익일이면 무조건 청산
+            # 같은 날이어도 장 마감 전에 청산 (17:00 이후면 청산)
+            if now.hour >= 17 and now.date() == self.entry_time.date():
+                return True
+        
+        # Long 포지션: 최대 2일 보유
+        if self.side == "LONG":
+            if hold_duration.days >= MAX_POSITION_HOLD_DAYS:
+                return True
+        
+        # 새벽 05:00 강제 청산 (모든 포지션)
+        if now.hour >= FORCE_CLOSE_HOUR and now.date() > self.entry_time.date():
+            return True
+        
+        return False
+
     def to_dict(self) -> Dict:
         """포지션 정보를 딕셔너리로 변환"""
         return {
