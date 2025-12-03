@@ -26,6 +26,21 @@ TARGET_SYMBOLS = [
         "LONG": "NVDX",      # 2x 롱 ETF: T-Rex 2X Long Nvidia Daily Target ETF
         "SHORT": "NVDQ"      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
     },
+    {
+        "ORIGINAL": "GOOGL",  # 원본 주식: Google
+        "LONG": "GGLL",      # 2x 롱 ETF: Direxion Daily GOOGL Bull 2X Shares
+        "SHORT": "GGLS"      # 1x 숏 ETF: Direxion Daily GOOGL Bear 1X Shares
+    },
+    {
+        "ORIGINAL": "AAPL",  # 원본 주식: Apple
+        "LONG": "AAPU",      # 2x 롱 ETF: Direxion Daily AAPL Bull 2X Shares
+        "SHORT": "AAPD"      # 1x 숏 ETF: Direxion Daily AAPL Bear 1X Shares
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Tesla
+        "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "SHORT": "TSLS"      # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+    }
     # 추가 종목 예시:
     # {
     #     "ORIGINAL": "AMD",
