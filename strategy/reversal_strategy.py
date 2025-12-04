@@ -320,6 +320,9 @@ class ReversalStrategy:
             logger.warning("전환할 포지션이 없습니다")
             return None
         
+        # 수수료율 가져오기 (기본값 0.001)
+        fee_rate = self.params.get("fee_rate", 0.001)
+        
         # 반전 확인 조건 체크
         target_side = "SHORT" if self.current_position == "LONG" else "LONG"
         confirmed = TRUE
@@ -340,16 +343,12 @@ class ReversalStrategy:
         #if not market_conditions["meets_threshold"]:
         #    logger.info(f"시장 조건 미충족: 변동성 {market_conditions['volatility']:.4f}")
         
-        # 반전 지연 시간 적용
-        if self.params.get("reverse_delay", 0) > 0:
-            delay_seconds = self.params.get("reverse_delay", 60)
-            logger.info(f"반전 지연: {delay_seconds}초 대기")
-            time.sleep(min(delay_seconds, 5))  # 최대 5초만 대기 (테스트용)
-        
         # 기존 포지션 청산
         if self.current_etf_symbol and self.entry_price and self.entry_quantity:
             exit_price = etf_long_price if self.current_position == "LONG" else etf_short_price
-            
+            trade_amount = self.entry_quantity * exit_price
+            fee = trade_amount * fee_rate
+
             pnl_pct = ((exit_price - self.entry_price) / self.entry_price) * 100
 
             #if self.current_position == "LONG":
@@ -369,20 +368,27 @@ class ReversalStrategy:
                 'entry_price': self.entry_price,
                 'exit_price': exit_price,
                 'quantity': self.entry_quantity,
-                'pnl': pnl,
+                'pnl': pnl - fee,
                 'pnl_pct': pnl_pct,
+                'fee': fee,
                 'reason': reason
             }
             self.trade_history.append(trade_record)
             
             # 자본 업데이트
-            self.capital += self.entry_quantity * self.entry_price + pnl
+            self.capital += self.entry_quantity * self.entry_price + pnl - fee
             
             logger.info(
                 f"포지션 청산: {self.current_etf_symbol} {self.current_position} "
-                f"@ ${self.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%)"
+                f"@ ${self.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%, 수수료: ${fee:.2f})"
             )
         
+        # 반전 지연 시간 적용
+        if self.params.get("reverse_delay", 0) > 0:
+            delay_seconds = self.params.get("reverse_delay", 60)
+            logger.info(f"반전 지연: {delay_seconds}초 대기")
+            time.sleep(min(delay_seconds, 5))  # 최대 5초만 대기 (테스트용)
+
         # 반대 포지션 진입
         target_etf = etf_long if target_side == "LONG" else etf_short
         target_price = etf_long_price if target_side == "LONG" else etf_short_price
@@ -391,7 +397,8 @@ class ReversalStrategy:
         
         if quantity > 0:
             trade_amount = target_price * quantity
-            self.capital -= trade_amount
+            fee = trade_amount * fee_rate
+            self.capital -= (trade_amount + fee)
             
             # 전환 기록
             reversal_record = {
@@ -403,6 +410,7 @@ class ReversalStrategy:
                 'to_etf': target_etf,
                 'entry_price': target_price,
                 'quantity': quantity,
+                'fee': fee,
                 'reason': reason,
                 'confirm_reason': confirm_reason
             }
@@ -426,7 +434,7 @@ class ReversalStrategy:
             
             logger.info(
                 f"🔄 전환 매매 실행: {self.current_etf_symbol} -> {target_etf} "
-                f"({self.current_position}) @ ${target_price:.2f} x {quantity:.2f}"
+                f"({self.current_position}) @ ${target_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})"
             )
             
             return reversal_record

@@ -23,6 +23,7 @@ class ReversalBacktester:
         self.strategy = ReversalStrategy(params=params)
         self.trades = []
         self.equity_curve = []
+        self.fee_rate = 0.001  # 거래 수수료율 (예: 0.1%)
     
     def run_backtest(
         self,
@@ -124,7 +125,8 @@ class ReversalBacktester:
                     quantity = self.strategy.calculate_position_size(etf_long_price, is_reversal=False)
                     if quantity > 0:
                         trade_amount = etf_long_price * quantity
-                        self.strategy.capital -= trade_amount
+                        fee = trade_amount * self.fee_rate
+                        self.strategy.capital -= (trade_amount + fee)
                         
                         self.strategy.current_position = "LONG"
                         self.strategy.current_etf_symbol = etf_long
@@ -132,13 +134,14 @@ class ReversalBacktester:
                         self.strategy.entry_time = current_time
                         self.strategy.entry_quantity = quantity
                         
-                        print(f"📈 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_long} 롱 진입 @ ${etf_long_price:.2f} x {quantity:.2f}")
+                        print(f"📈 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_long} 롱 진입 @ ${etf_long_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})")
                 
                 elif signal == SignalType.SELL and confidence > 0.5:
                     quantity = self.strategy.calculate_position_size(etf_short_price, is_reversal=False)
                     if quantity > 0:
                         trade_amount = etf_short_price * quantity
-                        self.strategy.capital -= trade_amount
+                        fee = trade_amount * self.fee_rate
+                        self.strategy.capital -= (trade_amount + fee)
                         
                         self.strategy.current_position = "SHORT"
                         self.strategy.current_etf_symbol = etf_short
@@ -146,7 +149,7 @@ class ReversalBacktester:
                         self.strategy.entry_time = current_time
                         self.strategy.entry_quantity = quantity
                         
-                        print(f"📉 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_short} 숏 진입 @ ${etf_short_price:.2f} x {quantity:.2f}")
+                        print(f"📉 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_short} 숏 진입 @ ${etf_short_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})")
             
             # 포지션 모니터링
             if self.strategy.current_position:
@@ -186,10 +189,17 @@ class ReversalBacktester:
             if self.strategy.current_position and self.strategy.entry_price:
                 if self.strategy.current_position == "LONG":
                     current_etf_price = etf_long_price
-                    pnl_pct = ((current_etf_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
                 else:
                     current_etf_price = etf_short_price
-                    pnl_pct = ((self.strategy.entry_price - current_etf_price) / self.strategy.entry_price) * 100
+
+                pnl_pct = ((current_etf_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
+
+#                if self.strategy.current_position == "LONG":
+#                    current_etf_price = etf_long_price
+#                    pnl_pct = ((current_etf_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
+#                else:
+#                    current_etf_price = etf_short_price
+#                    pnl_pct = ((self.strategy.entry_price - current_etf_price) / self.strategy.entry_price) * 100
                 
                 pnl = self.strategy.entry_quantity * self.strategy.entry_price * (pnl_pct / 100)
                 estimated_capital = self.strategy.capital + self.strategy.entry_quantity * self.strategy.entry_price + pnl
@@ -222,13 +232,17 @@ class ReversalBacktester:
             'reversals': self.strategy.reversal_history,
             'equity_curve': self.equity_curve,
             'final_capital': self.strategy.capital,
-            'total_pnl': self.strategy.capital - self.strategy.initial_capital
+            'total_pnl': self.strategy.capital - self.strategy.initial_capital,
+            'total_fee': sum(t.get('fee', 0) for t in self.strategy.trade_history)
         }
     
     def _close_position(self, exit_time, exit_price: float, reason: str):
         """포지션 청산"""
         if not self.strategy.current_position or not self.strategy.entry_price:
             return
+        
+        trade_amount = self.strategy.entry_quantity * exit_price
+        fee = trade_amount * self.fee_rate
         
         pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
         #if self.strategy.current_position == "LONG":
@@ -237,7 +251,7 @@ class ReversalBacktester:
         #    pnl_pct = ((self.strategy.entry_price - exit_price) / self.strategy.entry_price) * 100
         
         pnl = self.strategy.entry_quantity * self.strategy.entry_price * (pnl_pct / 100)
-        self.strategy.capital += self.strategy.entry_quantity * self.strategy.entry_price + pnl
+        self.strategy.capital += self.strategy.entry_quantity * self.strategy.entry_price + pnl - fee
         
         trade_record = {
             'entry_time': self.strategy.entry_time,
@@ -247,13 +261,14 @@ class ReversalBacktester:
             'entry_price': self.strategy.entry_price,
             'exit_price': exit_price,
             'quantity': self.strategy.entry_quantity,
-            'pnl': pnl,
+            'pnl': pnl - fee,
             'pnl_pct': pnl_pct,
+            'fee': fee,
             'reason': reason
         }
         self.strategy.trade_history.append(trade_record)
         
-        print(f"🔒 [{exit_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} {self.strategy.current_position} 청산 @ ${self.strategy.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%) - {reason}")
+        print(f"🔒 [{exit_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} {self.strategy.current_position} 청산 @ ${self.strategy.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%, 수수료: ${fee:.2f}) - {reason}")
         
         # 포지션 초기화
         self.strategy.current_position = None
@@ -280,7 +295,7 @@ class ReversalBacktester:
         total_pnl = sum(t['pnl'] for t in self.strategy.trade_history)
         total_pnl_pct = (total_pnl / self.strategy.initial_capital) * 100
         
-        win_rate = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0
+        win_rate = (len(winning_trades) / total_trades * 100)
         
         print(f"💰 자본 변화")
         print(f"  초기 자본:     ${self.strategy.initial_capital:>12,.2f}")
@@ -303,7 +318,15 @@ class ReversalBacktester:
             print(f"  평균 손실:     ${avg_loss:>12,.2f}")
         
         print(f"\n{'='*70}\n")
-        
+
+        # 거래 내역 상세 출력 (수수료 포함)
+        print("📋 거래 내역:")
+        print("-" * 70)
+        for i, trade in enumerate(self.strategy.trade_history, 1):
+            print(f"{i}. {trade['entry_time'].strftime('%Y-%m-%d %H:%M')} ~ {trade['exit_time'].strftime('%Y-%m-%d %H:%M')}")
+            print(f"   {trade['symbol']} {trade['side']} | 진입가: ${trade['entry_price']:.2f} | 청산가: ${trade['exit_price']:.2f} | 수량: {trade['quantity']:.2f}")
+            print(f"   손익: ${trade['pnl']:.2f} ({trade['pnl_pct']:.2f}%) | 수수료: ${trade['fee']:.2f} | 사유: {trade['reason']}")
+
         # 전환 매매 내역
         if self.strategy.reversal_history:
             print("🔄 전환 매매 내역:")
@@ -317,7 +340,7 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 4
+    target_item_index = 5
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
@@ -358,7 +381,8 @@ def main():
         print(f"   총 거래: {len(results['trades'])}회")
         print(f"   전환 매매: {len(results['reversals'])}회")
         print(f"   최종 자본: ${results['final_capital']:,.2f}")
-        print(f"   총 손익: ${results['total_pnl']:,.2f}\n")
+        print(f"   총 손익: ${results['total_pnl']:,.2f}")
+        print(f"   총 수수료: ${results['total_fee']:,.2f}\n")
 
 if __name__ == "__main__":
     main()
