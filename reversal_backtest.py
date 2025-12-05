@@ -23,13 +23,15 @@ class ReversalBacktester:
         self.strategy = ReversalStrategy(params=params)
         self.trades = []
         self.equity_curve = []
-        self.fee_rate = 0.001  # 거래 수수료율 (예: 0.1%)
+        self.fee_rate = 0.0025  # 거래 수수료율 (예: 0.25%)
     
     def run_backtest(
         self,
         original_symbol: str,
         etf_long: str,
+        etf_long_multiple: str,
         etf_short: str,
+        etf_short_multiple: str,
         start_date: str,
         end_date: str,
         interval: str = "1h"
@@ -47,7 +49,7 @@ class ReversalBacktester:
         """
         print(f"\n{'='*70}")
         print(f"전환 매매 전략 백테스트 시작")
-        print(f"원본 주식: {original_symbol} -> {etf_long}/{etf_short}")
+        print(f"원본 주식: {original_symbol} -> {etf_long} {etf_long_multiple} /{etf_short} {etf_short_multiple}")
         print(f"기간: {start_date} ~ {end_date}")
         print(f"초기 자본: ${self.strategy.initial_capital:.2f}")
         print(f"{'='*70}\n")
@@ -98,6 +100,12 @@ class ReversalBacktester:
             # 원본 주식 데이터 (신호 생성용)
             original_mask = original_data.index <= current_time
             original_current_data = original_data.loc[original_mask]
+
+            # LONG/SHORT ETF 데이터
+            etf_long_mask = etf_long_data.index <= current_time
+            etf_short_mask = etf_short_data.index <= current_time
+            etf_long_current_data = etf_long_data.loc[etf_long_mask]
+            etf_short_current_data = etf_short_data.loc[etf_short_mask]
             
             if len(original_current_data) < 50:
                 continue
@@ -111,10 +119,21 @@ class ReversalBacktester:
             
             # 신호 생성
             #print(f"📈 신호 생성 시도 [{current_time.strftime('%Y-%m-%d %H:%M')}] ")
-            signal_data = self.strategy.signal_generator.generate_signal(
-                original_current_data,
-                self.strategy.current_position
-            )
+            if not self.strategy.current_position:
+                signal_data = self.strategy.signal_generator.generate_signal(
+                    original_current_data,
+                    self.strategy.current_position
+                )
+            elif self.strategy.current_position == "LONG":
+                signal_data = self.strategy.signal_generator.generate_signal(
+                    etf_long_current_data,
+                    self.strategy.current_position
+                )
+            else:  # SHORT
+                signal_data = self.strategy.signal_generator.generate_signal(
+                    etf_short_current_data,
+                    self.strategy.current_position
+                )
             
             signal = signal_data['signal']
             confidence = signal_data['confidence']
@@ -154,9 +173,9 @@ class ReversalBacktester:
             # 포지션 모니터링
             if self.strategy.current_position:
                 current_etf_price = etf_long_price if self.strategy.current_position == "LONG" else etf_short_price
-                
+                current_etf_multiple = etf_long_multiple if self.strategy.current_position == "LONG" else etf_short_multiple
                 # 손절/익절 확인
-                exit_reason = self.strategy.check_stop_loss_take_profit(current_etf_price)
+                exit_reason = self.strategy.check_stop_loss_take_profit2(current_etf_price, current_etf_multiple)
                 
                 if exit_reason:
                     # 손절인 경우 전환 매매
@@ -340,7 +359,7 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 5
+    target_item_index = 3
     # 전략 파라미터 설정
     params = REVERSAL_STRATEGY_PARAMS.copy()
     params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
@@ -354,10 +373,12 @@ def main():
     target_item = TARGET_SYMBOLS[target_item_index]
     original_symbol = target_item["ORIGINAL"]
     etf_long = target_item["LONG"]
+    etf_long_multiple = target_item["LONG_MULTIPLE"]
     etf_short = target_item["SHORT"]
+    etf_short_multiple = target_item["SHORT_MULTIPLE"]
     
     start_date = "2024-11-01"
-    end_date = "2025-11-29"
+    end_date = "2025-12-03"
     interval = "2m"
     
     print(f"\n🚀 전환 매매 전략 백테스트 시작")
@@ -370,7 +391,9 @@ def main():
     results = backtester.run_backtest(
         original_symbol=original_symbol,
         etf_long=etf_long,
+        etf_long_multiple=etf_long_multiple,
         etf_short=etf_short,
+        etf_short_multiple=etf_short_multiple,
         start_date=start_date,
         end_date=end_date,
         interval=interval

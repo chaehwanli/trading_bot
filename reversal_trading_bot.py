@@ -40,7 +40,9 @@ class ReversalTradingBot:
             raise ValueError(f"{self.original_symbol}에 해당하는 ETF 정보를 찾을 수 없습니다")
         
         self.etf_long = etf_info["LONG"]
+        self.etf_long_multiple = etf_info["LONG_MULTIPLE"]
         self.etf_short = etf_info["SHORT"]
+        self.etf_short_multiple = etf_info["SHORT_MULTIPLE"]
         
         logger.info(f"전환 매매 봇 초기화: {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
     
@@ -60,7 +62,10 @@ class ReversalTradingBot:
                 return
             
             # 손절/익절 확인
-            exit_reason = self.strategy.check_stop_loss_take_profit(current_price)
+            if self.strategy.current_position == "LONG":
+                exit_reason = self.strategy.check_stop_loss_take_profit2(current_price, self.etf_long_multiple)
+            else:
+                exit_reason = self.strategy.check_stop_loss_take_profit2(current_price, self.etf_short_multiple)
             
             if exit_reason:
                 logger.info(f"{self.strategy.current_etf_symbol} {exit_reason} 조건 충족")

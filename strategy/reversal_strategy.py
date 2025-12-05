@@ -120,13 +120,13 @@ class ReversalStrategy:
             return False
         
         # 쿨다운 기간 확인
-        if current_time.tzinfo is None:
-            current_time = current_time.replace(tzinfo=timezone.utc)
-        if self.cooldown_until and self.cooldown_until.tzinfo is None:
-            self.cooldown_until = self.cooldown_until.replace(tzinfo=timezone.utc)
-        if self.cooldown_until and current_time < self.cooldown_until:
-            logger.info(f"쿨다운 기간 중: {self.cooldown_until}")
-            return False
+        #if current_time.tzinfo is None:
+        #    current_time = current_time.replace(tzinfo=timezone.utc)
+        #if self.cooldown_until and self.cooldown_until.tzinfo is None:
+        #    self.cooldown_until = self.cooldown_until.replace(tzinfo=timezone.utc)
+        #if self.cooldown_until and current_time < self.cooldown_until:
+        #    logger.info(f"쿨다운 기간 중: {self.cooldown_until}")
+        #    return False
         
         return True
 
@@ -441,6 +441,13 @@ class ReversalStrategy:
         
         return None
     
+    def get_stop_loss_rate(self, etf_multiple:str) -> float:
+        """포지션에 따른 손절율 반환"""
+        if etf_multiple == "2" or etf_multiple == "-2":
+            return self.params.get("2x_stop_loss_rate", -0.03) * 100
+        else:
+            return self.params.get("1x_stop_loss_rate", -0.015) * 100
+            
     def check_stop_loss_take_profit(
         self,
         current_price: float
@@ -460,7 +467,7 @@ class ReversalStrategy:
         #else:  # SHORT
         #    pnl_pct = ((self.entry_price - current_price) / self.entry_price) * 100
         
-        stop_loss_rate = self.params.get("stop_loss_rate", -0.02) * 100
+        stop_loss_rate = self.get_stop_loss_rate("2")  # 기본값 2x 기준
         take_profit_rate = self.params.get("take_profit_rate", 0.08) * 100
         
         if pnl_pct <= stop_loss_rate:
@@ -469,7 +476,37 @@ class ReversalStrategy:
             return "TAKE_PROFIT"
         
         return None
-    
+
+    def check_stop_loss_take_profit2(
+        self,
+        current_price: float,
+        etf_multiple: str
+    ) -> Optional[str]:
+        """
+        손절/익절 조건 확인
+        
+        Returns:
+            "STOP_LOSS", "TAKE_PROFIT", None
+        """
+        if not self.current_position or not self.entry_price:
+            return None
+        
+        pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
+        #if self.current_position == "LONG":
+        #    pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
+        #else:  # SHORT
+        #    pnl_pct = ((self.entry_price - current_price) / self.entry_price) * 100
+        
+        stop_loss_rate = self.get_stop_loss_rate(etf_multiple)
+        take_profit_rate = self.params.get("take_profit_rate", 0.08) * 100
+        
+        if pnl_pct <= stop_loss_rate:
+            return "STOP_LOSS"
+        elif pnl_pct >= take_profit_rate:
+            return "TAKE_PROFIT"
+        
+        return None
+
     def check_max_drawdown(self) -> bool:
         """최대 자본 손실률 확인"""
         max_drawdown = self.params.get("max_drawdown", 0.05)

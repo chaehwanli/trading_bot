@@ -19,33 +19,45 @@ TARGET_SYMBOLS = [
     {
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
-        "SHORT": "TSLZ"      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
+        "LONG_MULTIPLE": "2",
+        "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
     },
     {
         "ORIGINAL": "NVDA",  # 원본 주식: Nvidia
         "LONG": "NVDX",      # 2x 롱 ETF: T-Rex 2X Long Nvidia Daily Target ETF
-        "SHORT": "NVDQ"      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
+        "LONG_MULTIPLE": "2",
+        "SHORT": "NVDQ",      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
     },
     {
         "ORIGINAL": "GOOGL",  # 원본 주식: Google
         "LONG": "GGLL",      # 2x 롱 ETF: Direxion Daily GOOGL Bull 2X Shares
-        "SHORT": "GGLS"      # 1x 숏 ETF: Direxion Daily GOOGL Bear 1X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "GGLS",      # 1x 숏 ETF: Direxion Daily GOOGL Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
     },
     {
         "ORIGINAL": "AAPL",  # 원본 주식: Apple
         "LONG": "AAPU",      # 2x 롱 ETF: Direxion Daily AAPL Bull 2X Shares
-        "SHORT": "AAPD"      # 1x 숏 ETF: Direxion Daily AAPL Bear 1X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "AAPD",      # 1x 숏 ETF: Direxion Daily AAPL Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
     },
     {
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
-        "SHORT": "TSLS"      # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "TSLS",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
     }
     # 추가 종목 예시:
     # {
     #     "ORIGINAL": "AMD",
     #     "LONG": "AMDL",      # GraniteShares 2x Long AMD Daily ETF
+    #     "LONG_MULTIPLE": 2,
     #     "SHORT": "AMDS"      # (숏 ETF가 있다면)
+    #     "SHORT_MULTIPLE": -1
     # }
 ]
 
@@ -70,6 +82,7 @@ def get_etf_by_original(original_symbol: str):
         if item["ORIGINAL"] == original_symbol:
             return item
     return None
+
 # ========== 거래 시간 설정 ==========
 TRADING_START_HOUR = 17  # 오후 5시 (한국시간 기준)
 TRADING_END_HOUR = 5     # 새벽 5시 (익일)
@@ -133,8 +146,10 @@ REVERSAL_POSITION_TYPE = "NONE"  # 현재 포지션 상태: LONG, SHORT, NONE
 REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
+REVERSAL_1X_STOP_LOSS_RATE = -0.015  # 손절 비율 (-2%)
+REVERSAL_2X_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.1  # 익절 비율 (+8%)
+REVERSAL_TAKE_PROFIT_RATE = 0.12  # 익절 비율 (+8%)
 REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
@@ -155,7 +170,7 @@ REVERSAL_REVERSE_DELAY = 5  # 손절 후 반전 진입 지연 시간 (초)
 REVERSAL_REVERSE_CONFIRMATION = True  # 반전 진입 전 추가 확인 조건
 REVERSAL_REVERSE_RISK_FACTOR = 0.8  # 반전시 진입 자본 비율 (기존보다 80%)
 REVERSAL_COOLDOWN_PERIOD = 1  # 반전 후 추가 거래 금지 기간 (일)
-REVERSAL_REVERSAL_LIMIT = 2  # 하루 최대 전환 횟수
+REVERSAL_REVERSAL_LIMIT = 1  # 하루 최대 전환 횟수
 
 # 5. 로그 및 모니터링 파라미터
 REVERSAL_LOG_LEVEL = "INFO"  # 로그 상세도: DEBUG, INFO, WARN
@@ -167,6 +182,8 @@ REVERSAL_STRATEGY_PARAMS = {
     "symbol": REVERSAL_SYMBOL,
     "capital": REVERSAL_CAPITAL,
     "stop_loss_rate": REVERSAL_STOP_LOSS_RATE,
+    "1x_stop_loss_rate": REVERSAL_1X_STOP_LOSS_RATE,
+    "2x_stop_loss_rate": REVERSAL_2X_STOP_LOSS_RATE,
     "take_profit_rate": REVERSAL_TAKE_PROFIT_RATE,
     "reverse_trigger": REVERSAL_REVERSE_TRIGGER,
     "reverse_mode": REVERSAL_REVERSE_MODE,
