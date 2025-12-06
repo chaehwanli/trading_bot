@@ -149,7 +149,7 @@ REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 REVERSAL_1X_STOP_LOSS_RATE = -0.015  # 손절 비율 (-2%)
 REVERSAL_2X_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.12  # 익절 비율 (+8%)
+REVERSAL_TAKE_PROFIT_RATE = 0.09  # 익절 비율 (+8%)
 REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
@@ -170,7 +170,7 @@ REVERSAL_REVERSE_DELAY = 5  # 손절 후 반전 진입 지연 시간 (초)
 REVERSAL_REVERSE_CONFIRMATION = True  # 반전 진입 전 추가 확인 조건
 REVERSAL_REVERSE_RISK_FACTOR = 0.8  # 반전시 진입 자본 비율 (기존보다 80%)
 REVERSAL_COOLDOWN_PERIOD = 1  # 반전 후 추가 거래 금지 기간 (일)
-REVERSAL_REVERSAL_LIMIT = 1  # 하루 최대 전환 횟수
+REVERSAL_REVERSAL_LIMIT = 1 # 24시간내 최대 전환 횟수
 
 # 5. 로그 및 모니터링 파라미터
 REVERSAL_LOG_LEVEL = "INFO"  # 로그 상세도: DEBUG, INFO, WARN

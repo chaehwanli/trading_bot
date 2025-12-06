@@ -73,6 +73,7 @@ class ReversalStrategy:
         self.daily_reversal_count = 0
         self.last_reversal_date = None
         self.cooldown_until = None
+        self.reversal_timestamps: List[datetime] = []  # 24시간 내 전환 기록
         
         # 거래 기록
         self.trade_history: List[Dict] = []
@@ -111,22 +112,22 @@ class ReversalStrategy:
             self.last_reversal_date = current_time
     
     def can_reverse2(self, current_time: datetime) -> bool:
-        """전환 가능 여부 확인"""
-        self.reset_daily_count2(current_time)
-        
-        # 일일 전환 횟수 제한
-        if self.daily_reversal_count >= self.params.get("reversal_limit", 2):
-            logger.warning(f"일일 전환 횟수 제한 도달: {self.daily_reversal_count}")
+        """최근 24시간 기준 전환 가능 여부 확인"""
+        # 24시간 내 전환 기록만 남기기
+        window_start = current_time - timedelta(hours=24)
+        self.reversal_timestamps = [t for t in self.reversal_timestamps if t >= window_start]
+        reversal_limit = self.params.get("reversal_limit", 2)
+        if len(self.reversal_timestamps) >= reversal_limit:
+            logger.warning(f"최근 24시간 전환 횟수 제한 도달: {len(self.reversal_timestamps)}")
             return False
-        
         # 쿨다운 기간 확인
-        #if current_time.tzinfo is None:
-        #    current_time = current_time.replace(tzinfo=timezone.utc)
-        #if self.cooldown_until and self.cooldown_until.tzinfo is None:
-        #    self.cooldown_until = self.cooldown_until.replace(tzinfo=timezone.utc)
-        #if self.cooldown_until and current_time < self.cooldown_until:
-        #    logger.info(f"쿨다운 기간 중: {self.cooldown_until}")
-        #    return False
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
+        if self.cooldown_until and self.cooldown_until.tzinfo is None:
+            self.cooldown_until = self.cooldown_until.replace(tzinfo=timezone.utc)
+        if self.cooldown_until and current_time < self.cooldown_until:
+            logger.info(f"쿨다운 기간 중: {self.cooldown_until}")
+            return False
         
         return True
 
@@ -379,7 +380,7 @@ class ReversalStrategy:
             self.capital += self.entry_quantity * self.entry_price + pnl - fee
             
             logger.info(
-                f"포지션 청산: {self.current_etf_symbol} {self.current_position} "
+                f"포지션 청산: [{current_time.strftime('%Y-%m-%d %H:%M')}] {self.current_etf_symbol} {self.current_position} "
                 f"@ ${self.entry_price:.2f} ${exit_price:.2f} (손익: {pnl_pct:.2f}%, 수수료: ${fee:.2f})"
             )
         
@@ -432,8 +433,10 @@ class ReversalStrategy:
             #self.cooldown_until = datetime.now() + timedelta(days=cooldown_days)
             self.cooldown_until = current_time + timedelta(days=cooldown_days)
             
+            self.reversal_timestamps.append(current_time)  # 24시간 내 전환 기록 추가
+            
             logger.info(
-                f"🔄 전환 매매 실행: {self.current_etf_symbol} -> {target_etf} "
+                f"🔄 전환 매매 실행: [{current_time.strftime('%Y-%m-%d %H:%M')}] {self.current_etf_symbol} -> {target_etf} "
                 f"({self.current_position}) @ ${target_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})"
             )
             
