@@ -119,21 +119,26 @@ class ReversalBacktester:
             
             # 신호 생성
             #print(f"📈 신호 생성 시도 [{current_time.strftime('%Y-%m-%d %H:%M')}] ")
-            if not self.strategy.current_position:
-                signal_data = self.strategy.signal_generator.generate_signal(
-                    original_current_data,
-                    self.strategy.current_position
-                )
-            elif self.strategy.current_position == "LONG":
-                signal_data = self.strategy.signal_generator.generate_signal(
-                    etf_long_current_data,
-                    self.strategy.current_position
-                )
-            else:  # SHORT
-                signal_data = self.strategy.signal_generator.generate_signal(
-                    etf_short_current_data,
-                    self.strategy.current_position
-                )
+            signal_data = self.strategy.signal_generator.generate_signal(
+                original_current_data,
+                self.strategy.current_position
+            )
+            
+            #if not self.strategy.current_position:
+            #    signal_data = self.strategy.signal_generator.generate_signal(
+            #        original_current_data,
+            #        self.strategy.current_position
+            #    )
+            #elif self.strategy.current_position == "LONG":
+            #    signal_data = self.strategy.signal_generator.generate_signal(
+            #        etf_long_current_data,
+            #        self.strategy.current_position
+            #    )
+            #else:  # SHORT
+            #    signal_data = self.strategy.signal_generator.generate_signal(
+            #        etf_short_current_data,
+            #        self.strategy.current_position
+            #    )
             
             signal = signal_data['signal']
             confidence = signal_data['confidence']
@@ -196,9 +201,14 @@ class ReversalBacktester:
                         else:
                             # 전환 불가 시 청산
                             self._close_position(current_time, current_etf_price, exit_reason)
-                    else:
+                    elif exit_reason == "TAKE_PROFIT":
                         # 익절인 경우 청산
                         self._close_position(current_time, current_etf_price, exit_reason)
+                    else:
+                        # 기타 사유 청산
+                        if signal == SignalType.SELL and confidence >= 0.7:
+                            print(f"🔻 [{current_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} 강한 손절 청산 신호 감지")
+                            self._close_position(current_time, current_etf_price, exit_reason)
                 
                 # 최대 보유 기간 확인
                 elif self.strategy.check_max_hold_days2(current_time):

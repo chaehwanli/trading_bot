@@ -113,6 +113,9 @@ class ReversalStrategy:
     
     def can_reverse2(self, current_time: datetime) -> bool:
         """최근 24시간 기준 전환 가능 여부 확인"""
+ 
+        self.reset_daily_count2(current_time)
+
         # 24시간 내 전환 기록만 남기기
         window_start = current_time - timedelta(hours=24)
         self.reversal_timestamps = [t for t in self.reversal_timestamps if t >= window_start]
@@ -120,6 +123,8 @@ class ReversalStrategy:
         if len(self.reversal_timestamps) >= reversal_limit:
             logger.warning(f"최근 24시간 전환 횟수 제한 도달: {len(self.reversal_timestamps)}")
             return False
+        logger.info(f"최근 24시간 전환 횟수: {len(self.reversal_timestamps)} / {reversal_limit}")
+
         # 쿨다운 기간 확인
         if current_time.tzinfo is None:
             current_time = current_time.replace(tzinfo=timezone.utc)
@@ -313,8 +318,8 @@ class ReversalStrategy:
         Returns:
             거래 결과 딕셔너리 또는 None
         """
-        if not self.can_reverse2(current_time):
-            return None
+        #if not self.can_reverse2(current_time):
+        #    return None
         
         # 현재 포지션 확인
         if self.current_position is None:
@@ -436,7 +441,7 @@ class ReversalStrategy:
             self.reversal_timestamps.append(current_time)  # 24시간 내 전환 기록 추가
             
             logger.info(
-                f"🔄 전환 매매 실행: [{current_time.strftime('%Y-%m-%d %H:%M')}] {self.current_etf_symbol} -> {target_etf} "
+                f"🔄 전환 매매 실행: [{current_time.strftime('%Y-%m-%d %H:%M')}] {reversal_record['from_etf']} -> {reversal_record['to_etf']} "
                 f"({self.current_position}) @ ${target_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})"
             )
             
@@ -494,6 +499,7 @@ class ReversalStrategy:
         if not self.current_position or not self.entry_price:
             return None
         
+        print(f"self.entry_time: {self.entry_time.strftime('%Y-%m-%d %H:%M')}, self.current_etf_symbol: {self.current_etf_symbol}, self.current_position: {self.current_position}, self.entry_price: {self.entry_price:.2f}, current_price: {current_price:.2f}")
         pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
         #if self.current_position == "LONG":
         #    pnl_pct = ((current_price - self.entry_price) / self.entry_price) * 100
