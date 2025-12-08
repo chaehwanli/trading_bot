@@ -123,7 +123,7 @@ class ReversalBacktester:
                 original_current_data,
                 self.strategy.current_position
             )
-            
+
             #if not self.strategy.current_position:
             #    signal_data = self.strategy.signal_generator.generate_signal(
             #        original_current_data,
@@ -369,53 +369,107 @@ class ReversalBacktester:
 def main():
     """백테스트 메인 함수"""
 
-    target_item_index = 4
-    # 전략 파라미터 설정
-    params = REVERSAL_STRATEGY_PARAMS.copy()
-    params["symbol"] = TARGET_SYMBOLS[target_item_index]["ORIGINAL"]
-    params["capital"] = 1200
-    params["reverse_trigger"] = True
-    params["reverse_mode"] = "full"
-    
-    backtester = ReversalBacktester(params=params)
-    
-    # 백테스트 설정
-    target_item = TARGET_SYMBOLS[target_item_index]
-    original_symbol = target_item["ORIGINAL"]
-    etf_long = target_item["LONG"]
-    etf_long_multiple = target_item["LONG_MULTIPLE"]
-    etf_short = target_item["SHORT"]
-    etf_short_multiple = target_item["SHORT_MULTIPLE"]
+    # 결과 파일 초기화
+    with open("result.txt", "w", encoding="utf-8") as f:
+        f.write(f"전환 매매 전략 백테스트 결과 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+        f.write("="*70 + "\n\n")
     
     start_date = "2024-11-01"
     end_date = "2025-12-03"
-    interval = "2m"
+    interval = "30m"
     
-    print(f"\n🚀 전환 매매 전략 백테스트 시작")
-    print(f"   원본 주식: {original_symbol}")
-    print(f"   롱 ETF: {etf_long}")
-    print(f"   숏 ETF: {etf_short}")
-    print(f"   기간: {start_date} ~ {end_date}")
-    print(f"   간격: {interval}\n")
-    
-    results = backtester.run_backtest(
-        original_symbol=original_symbol,
-        etf_long=etf_long,
-        etf_long_multiple=etf_long_multiple,
-        etf_short=etf_short,
-        etf_short_multiple=etf_short_multiple,
-        start_date=start_date,
-        end_date=end_date,
-        interval=interval
-    )
-    
-    if results:
-        print(f"\n✅ 백테스트 완료!")
-        print(f"   총 거래: {len(results['trades'])}회")
-        print(f"   전환 매매: {len(results['reversals'])}회")
-        print(f"   최종 자본: ${results['final_capital']:,.2f}")
-        print(f"   총 손익: ${results['total_pnl']:,.2f}")
-        print(f"   총 수수료: ${results['total_fee']:,.2f}\n")
+    total_symbols = len(TARGET_SYMBOLS)
+
+    for i, target_item in enumerate(TARGET_SYMBOLS):
+        original_symbol = target_item["ORIGINAL"]
+        etf_long = target_item["LONG"]
+        etf_long_multiple = target_item["LONG_MULTIPLE"]
+        etf_short = target_item["SHORT"]
+        etf_short_multiple = target_item["SHORT_MULTIPLE"]
+        
+        # 전략 파라미터 설정
+        params = REVERSAL_STRATEGY_PARAMS.copy()
+        params["symbol"] = original_symbol
+        params["capital"] = 1200
+        params["reverse_trigger"] = True
+        params["reverse_mode"] = "full"
+        
+        backtester = ReversalBacktester(params=params)
+        
+        print(f"\n{'='*20} [{i+1}/{total_symbols}] {original_symbol} 백테스트 시작 {'='*20}")
+        print(f"LONG: {etf_long} ({etf_long_multiple}) / SHORT: {etf_short} ({etf_short_multiple})")
+        
+        results = backtester.run_backtest(
+            original_symbol=original_symbol,
+            etf_long=etf_long,
+            etf_long_multiple=etf_long_multiple,
+            etf_short=etf_short,
+            etf_short_multiple=etf_short_multiple,
+            start_date=start_date,
+            end_date=end_date,
+            interval=interval
+        )
+        
+        # 결과 파일에 누적
+        with open("result.txt", "a", encoding="utf-8") as f:
+            f.write(f"[{i+1}/{total_symbols}] {original_symbol} 결과\n")
+            f.write(f"LONG: {etf_long} ({etf_long_multiple}) / SHORT: {etf_short} ({etf_short_multiple})\n")
+            
+            if results:
+                trades = results['trades']
+                # 전체 통계
+                win_rate = 0
+                winning_trades = [t for t in trades if t['pnl'] > 0]
+                if trades:
+                    win_rate = (len(winning_trades) / len(trades) * 100)
+                
+                f.write(f"총 거래: {len(trades)}회\n")
+                f.write(f"전환 매매: {len(results['reversals'])}회\n")
+                f.write(f"승률: {win_rate:.2f}% ({len(winning_trades)}/{len(trades)})\n")
+                f.write(f"최종 자본: ${results['final_capital']:,.2f}\n")
+                f.write(f"총 손익: ${results['total_pnl']:,.2f}\n")
+                f.write(f"총 수수료: ${results['total_fee']:,.2f}\n")
+                
+                # LONG/SHORT 상세 통계
+                long_trades = [t for t in trades if t['side'] == 'LONG']
+                short_trades = [t for t in trades if t['side'] == 'SHORT']
+                
+                def calculate_stats(trade_list):
+                    if not trade_list:
+                        return "거래 없음", 0, 0, 0
+                    
+                    wins = [t for t in trade_list if t['pnl'] > 0]
+                    win_rate = (len(wins) / len(trade_list) * 100)
+                    
+                    max_profit = max([t['pnl'] for t in trade_list] + [0])
+                    max_loss = min([t['pnl'] for t in trade_list] + [0])
+                    
+                    return f"{win_rate:.2f}% ({len(wins)}/{len(trade_list)})", len(trade_list), max_profit, max_loss
+
+                long_win_rate, long_count, long_max_profit, long_max_loss = calculate_stats(long_trades)
+                short_win_rate, short_count, short_max_profit, short_max_loss = calculate_stats(short_trades)
+                
+                f.write(f"\n[LONG ETF: {etf_long}]\n")
+                f.write(f"  거래 횟수: {long_count}회\n")
+                f.write(f"  승률: {long_win_rate}\n")
+                f.write(f"  최대 수익: ${long_max_profit:.2f}\n")
+                f.write(f"  최대 손실: ${long_max_loss:.2f}\n")
+                
+                f.write(f"\n[SHORT ETF: {etf_short}]\n")
+                f.write(f"  거래 횟수: {short_count}회\n")
+                f.write(f"  승률: {short_win_rate}\n")
+                f.write(f"  최대 수익: ${short_max_profit:.2f}\n")
+                f.write(f"  최대 손실: ${short_max_loss:.2f}\n")
+
+            else:
+                f.write("거래 없음 또는 데이터 부족\n")
+            
+            f.write("-" * 50 + "\n\n")
+        
+        if results:
+            print(f"✅ {original_symbol} 완료: 총 손익 ${results['total_pnl']:,.2f}")
+            
+    print(f"\n🎉 모든 백테스트 완료! 결과가 result.txt에 저장되었습니다.")
 
 if __name__ == "__main__":
     main()

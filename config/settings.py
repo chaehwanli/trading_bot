@@ -147,10 +147,10 @@ REVERSAL_POSITION_TYPE = "NONE"  # 현재 포지션 상태: LONG, SHORT, NONE
 REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
-REVERSAL_1X_STOP_LOSS_RATE = -0.015  # 손절 비율 (-2%)
-REVERSAL_2X_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
+REVERSAL_1X_STOP_LOSS_RATE = -0.045  # 손절 비율 (-2%)
+REVERSAL_2X_STOP_LOSS_RATE = -0.09  # 손절 비율 (-2%)
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.09  # 익절 비율 (+8%)
+REVERSAL_TAKE_PROFIT_RATE = 0.4  # 익절 비율 (+8%)
 REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
