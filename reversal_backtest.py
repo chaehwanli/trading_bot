@@ -391,7 +391,7 @@ def main():
         params = REVERSAL_STRATEGY_PARAMS.copy()
         params["symbol"] = original_symbol
         params["capital"] = 1200
-        params["reverse_trigger"] = True
+        params["reverse_trigger"] = False
         params["reverse_mode"] = "full"
         
         backtester = ReversalBacktester(params=params)
