@@ -376,7 +376,7 @@ def main():
     
     start_date = "2024-11-01"
     end_date = "2025-12-03"
-    interval = "30m"
+    interval = "1h"
     
     total_symbols = len(TARGET_SYMBOLS)
 
