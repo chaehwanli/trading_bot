@@ -436,30 +436,45 @@ def main():
                 
                 def calculate_stats(trade_list):
                     if not trade_list:
-                        return "거래 없음", 0, 0, 0
+                        return "거래 없음", 0, 0, 0, None, None
                     
                     wins = [t for t in trade_list if t['pnl'] > 0]
                     win_rate = (len(wins) / len(trade_list) * 100)
                     
-                    max_profit = max([t['pnl'] for t in trade_list] + [0])
-                    max_loss = min([t['pnl'] for t in trade_list] + [0])
+                    max_profit_trade = max(trade_list, key=lambda x: x['pnl'])
+                    max_loss_trade = min(trade_list, key=lambda x: x['pnl'])
                     
-                    return f"{win_rate:.2f}% ({len(wins)}/{len(trade_list)})", len(trade_list), max_profit, max_loss
+                    max_profit = max_profit_trade['pnl']
+                    max_loss = max_loss_trade['pnl']
+                    
+                    return f"{win_rate:.2f}% ({len(wins)}/{len(trade_list)})", len(trade_list), max_profit, max_loss, max_profit_trade, max_loss_trade
 
-                long_win_rate, long_count, long_max_profit, long_max_loss = calculate_stats(long_trades)
-                short_win_rate, short_count, short_max_profit, short_max_loss = calculate_stats(short_trades)
+                long_win_rate, long_count, long_max_profit, long_max_loss, long_max_trade, long_min_trade = calculate_stats(long_trades)
+                short_win_rate, short_count, short_max_profit, short_max_loss, short_max_trade, short_min_trade = calculate_stats(short_trades)
                 
                 f.write(f"\n[LONG ETF: {etf_long}]\n")
                 f.write(f"  거래 횟수: {long_count}회\n")
                 f.write(f"  승률: {long_win_rate}\n")
-                f.write(f"  최대 수익: ${long_max_profit:.2f}\n")
-                f.write(f"  최대 손실: ${long_max_loss:.2f}\n")
+                f.write(f"  최대 수익: ${long_max_profit:.2f}")
+                if long_max_trade:
+                    f.write(f" (진입: ${long_max_trade['entry_price']:.2f}, 청산: ${long_max_trade['exit_price']:.2f}, 수량: {long_max_trade['quantity']:.2f})")
+                f.write("\n")
+                f.write(f"  최대 손실: ${long_max_loss:.2f}")
+                if long_min_trade:
+                    f.write(f" (진입: ${long_min_trade['entry_price']:.2f}, 청산: ${long_min_trade['exit_price']:.2f}, 수량: {long_min_trade['quantity']:.2f})")
+                f.write("\n")
                 
                 f.write(f"\n[SHORT ETF: {etf_short}]\n")
                 f.write(f"  거래 횟수: {short_count}회\n")
                 f.write(f"  승률: {short_win_rate}\n")
-                f.write(f"  최대 수익: ${short_max_profit:.2f}\n")
-                f.write(f"  최대 손실: ${short_max_loss:.2f}\n")
+                f.write(f"  최대 수익: ${short_max_profit:.2f}")
+                if short_max_trade:
+                    f.write(f" (진입: ${short_max_trade['entry_price']:.2f}, 청산: ${short_max_trade['exit_price']:.2f}, 수량: {short_max_trade['quantity']:.2f})")
+                f.write("\n")
+                f.write(f"  최대 손실: ${short_max_loss:.2f}")
+                if short_min_trade:
+                    f.write(f" (진입: ${short_min_trade['entry_price']:.2f}, 청산: ${short_min_trade['exit_price']:.2f}, 수량: {short_min_trade['quantity']:.2f})")
+                f.write("\n")
 
             else:
                 f.write("거래 없음 또는 데이터 부족\n")
