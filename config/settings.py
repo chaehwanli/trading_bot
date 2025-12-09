@@ -99,7 +99,92 @@ TARGET_SYMBOLS = [
         "LONG_MULTIPLE" : "2",
         "SHORT": "TSLZ",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
         "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: BitCoin
+        "LONG": "BTCL",      # 2x 롱 ETF: Direxion Daily BTC Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "BTCZ",      # 2x 숏 ETF: Direxion Daily BTC Bear 1X Shares
+        "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Tesla
+        "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Nvidia
+        "LONG": "NVDX",      # 2x 롱 ETF: T-Rex 2X Long Nvidia Daily Target ETF
+        "LONG_MULTIPLE": "2",
+        "SHORT": "NVDQ",      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Google
+        "LONG": "GGLL",      # 2x 롱 ETF: Direxion Daily GOOGL Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "GGLS",      # 1x 숏 ETF: Direxion Daily GOOGL Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Apple
+        "LONG": "AAPU",      # 2x 롱 ETF: Direxion Daily AAPL Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "AAPD",      # 1x 숏 ETF: Direxion Daily AAPL Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Tesla
+        "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "TSLS",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: AMD
+        "LONG": "AMUU",  # 2x 롱 ETF: Direxion Daily AMD Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "AMDD",     # 1x 숏 ETF: Direxion Daily AMD Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: Amazon
+        "LONG": "AMZU",  # 2x 롱 ETF: Direxion Daily AMZN Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "AMZD",     # 1x 숏 ETF: Direxion Daily AMZN Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: Broadcom
+        "LONG": "AVL",  # 2x 롱 ETF: Direxion Daily AVGO Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "AVS",     # 1x 숏 ETF: Direxion Daily AVGO Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: Meta
+        "LONG": "METU",  # 2x 롱 ETF: Direxion Daily META Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "METD",     # 1x 숏 ETF: Direxion Daily META Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: Netflix
+        "LONG": "NFXL",  # 2x 롱 ETF: Direxion Daily NFLX Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "NFXS",     # 1x 숏 ETF: Direxion Daily NFLX Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
+    },
+    {
+        "ORIGINAL": "TSLA",# 원본 주식: Tesla
+        "LONG": "TSLT",  # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "TSLZ",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-2"
     }
+
     # 추가 종목 예시:
     # {
     #     "ORIGINAL": "AMD",
