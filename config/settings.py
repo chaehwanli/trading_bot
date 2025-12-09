@@ -17,6 +17,13 @@ BASE_URL = os.getenv("BASE_URL", "https://paper-api.alpaca.markets")  # Paper tr
 # 구조: {"ORIGINAL": 원본주식, "LONG": 2x 롱 ETF, "SHORT": 2x 숏 ETF}
 TARGET_SYMBOLS = [
     {
+        "ORIGINAL": "BTC-USD",  # 원본 주식: BitCoin
+        "LONG": "BTCL",      # 2x 롱 ETF: Direxion Daily BTC Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "BTCZ",      # 2x 숏 ETF: Direxion Daily BTC Bear 1X Shares
+        "SHORT_MULTIPLE": "-2"
+    },
+    {
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
         "LONG_MULTIPLE": "2",
