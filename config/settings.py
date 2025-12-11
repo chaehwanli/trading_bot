@@ -6,6 +6,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+# ========== KIS (한국투자증권) API 설정 ==========
+# .env 파일에 다음 값들이 설정되어 있어야 합니다.
+KIS_APP_KEY = os.getenv("KIS_APP_KEY", "")
+KIS_APP_SECRET = os.getenv("KIS_APP_SECRET", "")
+KIS_ACCOUNT_NO = os.getenv("KIS_ACCOUNT_NO", "")  # 계좌번호 (8자리)
+KIS_BASE_URL = os.getenv("KIS_BASE_URL", "https://openapi.koreainvestment.com:9443") # 실전투자
+# KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443" # 모의투자
+
 # ========== 거래소 API 설정 ==========
 # 예시: Alpaca, Interactive Brokers 등
 API_KEY = os.getenv("API_KEY", "")
