@@ -21,3 +21,7 @@ pytz>=2023.3
 # 테스트
 pytest>=7.4.0
 
+
+# KIS API Dependencies
+aiohttp>=3.8.0
+requests>=2.31.0

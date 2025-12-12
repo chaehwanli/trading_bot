@@ -1,0 +1,49 @@
+{
+    "indicators": {
+        "rsi": {
+            "length": 5
+        },
+        "macd": {
+            "fast": 12,
+            "slow": 26,
+            "signal": 9
+        }
+    },
+    "fetch": {
+        "symbols": [
+            "TSLA",
+            "TSLL",
+            "TSLT",
+            "TSLZ",
+            "COIN",
+            "BTCL",
+            "BTCZ",
+            "AAPL",
+            "AAPU",
+            "AAPD",
+            "NVDA",
+            "NVDX",
+            "NVDQ",
+            "GOOGL",
+            "GGLL",
+            "GGLS",
+            "AMZN",
+            "AMZU",
+            "AMZD",
+            "META",
+            "METU",
+            "METD",
+            "NFLX",
+            "NFXL",
+            "NFXS",
+            "AMD",
+            "AMUU",
+            "AMUD",
+            "AVGO",
+            "AVL",
+            "AVS"
+        ],
+        "interval": "1h",
+        "period": "1y"
+    }
+}
