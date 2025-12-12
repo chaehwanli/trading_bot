@@ -60,3 +60,7 @@ Thumbs.db
 .coverage
 htmlcov/
 
+# API 토큰
+kis_token_real.json
+kis_token_mock.json
+alpaca_token_real.json

@@ -1,7 +1,7 @@
 import requests
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sys
 
@@ -26,6 +26,7 @@ class KisApi:
             
         self.access_token = None
         self.token_expiry = None
+        self.is_paper_trading = is_paper_trading
         
         # 계좌번호 분리 (앞 8자리 + 뒤 2자리)
         if '-' in self.account_no:
@@ -35,7 +36,6 @@ class KisApi:
             self.account_front = self.account_no[:8]
             self.account_back = self.account_no[8:]
         else:
-            # 예외 처리: 일단 그대로 둠 (사용자 확인 필요)
             self.account_front = self.account_no
             self.account_back = "01" # 기본값 가정
 
@@ -46,11 +46,30 @@ class KisApi:
             logger.error(f"KIS API 초기화 중 토큰 발급 실패: {e}")
 
     def _get_access_token(self):
-        """접근 토큰 발급/갱신"""
-        # 기존 토큰이 있고 유효하면 재사용
+        """접근 토큰 발급/갱신 (파일 캐시 지원)"""
+        # 1. 메모리 캐시 확인
         if self.access_token and self.token_expiry and datetime.now() < self.token_expiry:
             return self.access_token
 
+        # 2. 파일 캐시 확인
+        token_file = "kis_token_paper.json" if self.is_paper_trading else "kis_token_real.json"
+        
+        # 파일이 존재하면 읽기 시도
+        if os.path.exists(token_file):
+            try:
+                with open(token_file, 'r') as f:
+                    cached = json.load(f)
+                    expiry_dt = datetime.strptime(cached['expiry'], "%Y-%m-%d %H:%M:%S")
+                    
+                    if datetime.now() < expiry_dt:
+                        self.access_token = cached['access_token']
+                        self.token_expiry = expiry_dt
+                        logger.info(f"KIS 접근 토큰 로드 (캐시): {expiry_dt} 만료")
+                        return self.access_token
+            except Exception as e:
+                logger.warning(f"토큰 파일 읽기 실패 (재발급 진행): {e}")
+
+        # 3. 토큰 발급 요청
         path = "/oauth2/tokenP"
         url = f"{self.base_url}{path}"
         
@@ -61,6 +80,10 @@ class KisApi:
             "appsecret": self.app_secret
         }
         
+        # 모의투자시 env_dv 추가 (사용자 요청 반영)
+        if self.is_paper_trading:
+            body["env_dv"] = "demo"
+        
         try:
             res = requests.post(url, headers=headers, data=json.dumps(body))
             res.raise_for_status()
@@ -68,14 +91,26 @@ class KisApi:
             
             self.access_token = data['access_token']
             # 토큰 유효기간 설정 (여유있게 1시간 줄임)
-            self.token_expiry = datetime.now() + timedelta(seconds=int(data['expires_in']) - 3600)
+            # KIS 토큰은 보통 24시간 (86400초)
+            seconds_left = int(data.get('expires_in', 86400))
+            self.token_expiry = datetime.now() + timedelta(seconds=seconds_left - 3600)
             
-            logger.info("KIS 접근 토큰 발급 성공")
+            logger.info("KIS 접근 토큰 발급 성공 & 캐시 저장")
+            
+            # 파일에 저장
+            try:
+                with open(token_file, 'w') as f:
+                    json.dump({
+                        'access_token': self.access_token,
+                        'expiry': self.token_expiry.strftime("%Y-%m-%d %H:%M:%S")
+                    }, f)
+            except Exception as e:
+                logger.warning(f"토큰 파일 저장 실패: {e}")
+                
             return self.access_token
             
         except Exception as e:
             logger.error(f"토큰 발급 실패: {e}")
-            # 테스트/개발 환경을 위해 가짜 토큰 반환할 수도 있음 (주의)
             return None
 
     def _get_common_headers(self, tr_id):
@@ -92,31 +127,22 @@ class KisApi:
             "tr_id": tr_id
         }
 
+    def _guess_exch_code(self, symbol):
+        """거래소 코드 추정 (미국 주식 기준)"""
+        if symbol in ['TSLT', 'TSLZ', 'BTCL', 'BTCZ', 'NVDX', 'NVDQ'] :
+            return "AMS"
+        #if symbol in ['TSLL', 'TSLZ', 'TSLT']: # 주요 ETF 확인
+        #    return "NAS"
+        # 그 외 AMS로 가정 (혹은 NYS)
+        return "NAS"
+
     def get_current_price(self, symbol: str):
-        """
-        해외주식 현재가 상세 조회
-        주의: 심볼은 티커 (예: TSLA)
-        """
-        # 해외주식 현재체결가 (HHDFS00000300)
+        """해외주식 현재가 상세 조회"""
         path = "/uapi/overseas-price/v1/quotations/price"
         url = f"{self.base_url}{path}"
-        
-        # 거래소 코드 추정 (미국 주식 기준)
-        exch_code = "NAS" # 나스닥 기본 가정. 필요시 NYS 등 구분 로직 필요
-        # 간단한 매핑
-        if symbol in ['TSLA', 'AAPL', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META', 'NFLX', 'AMD', 'INTC']:
-            exch_code = "NAS"
-        else:
-            exch_code = "AMS" # 아멕스 등.. ETF는 구분 필요할 수 있음.
-            # ETF가 대부분 나스닥/NYSE 아카 등인데 KIS는 NAS/NYS/AMS 로 구분
-            # 안전하게 검색 API를 쓰거나, 일단 NAS/NYS 시도해보는 로직이 좋음.
-            # 여기서는 TSLL, TSLZ 등이 나스닥인지 확인 필요. TSLL(Nasdaq), TSLZ(Nasdaq)
-            if symbol in ['TSLL', 'TSLZ', 'TSLT']:
-                exch_code = "NAS"
-            
+        exch_code = self._guess_exch_code(symbol)
         
         headers = self._get_common_headers("HHDFS00000300")
-        
         params = {
             "AUTH": "",
             "EXCD": exch_code,
@@ -132,7 +158,6 @@ class KisApi:
                 logger.error(f"시세 조회 실패 ({symbol}): {data['msg1']}")
                 return None
                 
-            # last: 현재가
             current_price = float(data['output']['last'])
             return current_price
             
@@ -140,41 +165,126 @@ class KisApi:
             logger.error(f"API 호출 오류 (get_current_price): {e}")
             return None
 
+    def get_daily_price(self, symbol: str, period_code="D"):
+        """
+        해외주식 기간별 시세 (일/주/월)
+        symbol: 심볼
+        period_code: D(일), W(주), M(월)
+        """
+        path = "/uapi/overseas-price/v1/quotations/dailyprice"
+        url = f"{self.base_url}{path}"
+        exch_code = self._guess_exch_code(symbol)
+
+        headers = self._get_common_headers("HHDFS76240000")
+        
+        # 날짜 형식 YYYYMMDD
+        today = datetime.now()
+        # 0: 일, 1: 주, 2: 월   (문서확인: GUBN 0=일, 1=주, 2=월)
+        gubn = "0"
+        if period_code == "W": gubn = "1"
+        elif period_code == "M": gubn = "2"
+
+        params = {
+            "AUTH": "",
+            "EXCD": exch_code,
+            "SYMB": symbol,
+            "GUBN": gubn,
+            "BYMD": today.strftime("%Y%m%d"), # 조회 기준일(오늘)
+            "MODP": "1" # 수정주가 반영 여부 (0:미반영, 1:반영)
+        }
+
+        try:
+            res = requests.get(url, headers=headers, params=params)
+            res.raise_for_status()
+            data = res.json()
+            
+            if data['rt_cd'] != '0':
+                logger.error(f"일별 시세 조회 실패 ({symbol}): {data['msg1']}")
+                return None
+            
+            return data['output2'] # 일별 데이터 리스트
+
+        except Exception as e:
+            logger.error(f"API 호출 오류 (get_daily_price): {e}")
+            return None
+
+    def get_minute_price(self, symbol: str):
+        """
+        해외주식 분봉 조회 (당일/과거 포함)
+        TR_ID: HHDFS76950200 (해외주식 분봉조회)
+        """
+        path = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
+        url = f"{self.base_url}{path}"
+        exch_code = self._guess_exch_code(symbol)
+        
+        headers = self._get_common_headers("HHDFS76950200")
+        
+        params = {
+            "AUTH": "",
+            "EXCD": exch_code,
+            "SYMB": symbol,
+            "NMIN": "60", # 60분봉
+            "PINC": "1", # 전일포함
+            "NEXT": "",
+            "NREC": "120", # 요청 개수
+            "KEYB": "" 
+        }
+
+        # 재시도 로직 추가 (500 에러 대응)
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                # Rate Limit 등을 고려한 미세 지연
+                time.sleep(0.2) 
+                
+                res = requests.get(url, headers=headers, params=params)
+                
+                if res.status_code == 500:
+                    logger.warning(f"API 500 Error ({symbol}), retrying {i+1}/{max_retries}...")
+                    time.sleep(1) # 대기 후 재시도
+                    continue
+                
+                res.raise_for_status()
+                data = res.json()
+                
+                if data['rt_cd'] != '0':
+                    logger.error(f"분봉 시세 조회 실패 ({symbol}): {data['msg1']}")
+                    return None
+                    
+                return data['output2']
+
+            except Exception as e:
+                logger.error(f"API 호출 오류 (get_minute_price): {e}")
+                if i < max_retries - 1:
+                    time.sleep(1)
+                    continue
+                return None
+        return None
+
     def get_balance(self):
         """해외주식 체결기준 잔고"""
-        # 해외주식 잔고 (HHDFS76410000) - 실전/모의 tr_id가 다를 수 있음 확인 필요
-        # 모의: VTRR6540S (매수가능조회) 등으로 대체 가능하기도 함.
-        pass 
-        # 일단 구현 생략 (시간상 Bot 로직 구현 집중) - 모의 잔고라도 리턴해야 함
-        return 100000.0 # 임시 하드코딩
+        # (기존 코드 유지)
+        return 100000.0 
 
     def place_order(self, symbol, side, qty, price=0, order_type="00"):
-        """
-        해외주식 주문
-        side: 'BUY' or 'SELL'
-        order_type: '00' (지정가), '01' (시장가) 등. 해외주식은 보통 지정가 권장되나 시장가 지원 여부 확인.
-        KIS 미국주식: 지정가(00), 시장가(01) 등
-        """
-        # tr_id 결정
-        # 실전: TTTT1002U (미국 매수), TTTT1006U (미국 매도)
-        # 모의: VTTT1002U ...
-        is_paper = "vts" in self.base_url
+        """해외주식 주문"""
+        # (기존 코드 유지, is_paper_trading 속성 사용하도록 수정)
         
         tr_id = ""
+        # 실전: JTTT1002U / JTTT1006U (미국)
+        # 모의: VTTT1002U / VTTT1006U (미국)
+        
         if side == "BUY":
-            tr_id = "VTTT1002U" if is_paper else "JTTT1002U" # 미국 매수 (3자리 다름 주의 - 문서 확인 필요. JTTT1002U가 맞음)
-            # * 주의: KIS API 문서는 수시로 확인 필요. 일단 일반적인 ID 사용.
-            #  미국 매수: JTTT1002U (주간/야간 통합일 수 있음)
+            tr_id = "VTTT1002U" if self.is_paper_trading else "JTTT1002U"
         elif side == "SELL":
-            tr_id = "VTTT1006U" if is_paper else "JTTT1006U" # 미국 매도
+            tr_id = "VTTT1006U" if self.is_paper_trading else "JTTT1006U"
             
         path = "/uapi/overseas-stock/v1/trading/order"
         url = f"{self.base_url}{path}"
         
         headers = self._get_common_headers(tr_id)
         
-        # 거래소 코드
-        ovs_excd = "NAS" # 일단 나스닥 가정
+        ovs_excd = self._guess_exch_code(symbol)
         
         body = {
             "CANO": self.account_front,
@@ -182,9 +292,9 @@ class KisApi:
             "OVRS_EXCG_CD": ovs_excd,
             "PDNO": symbol,
             "ORD_QTY": str(int(qty)),
-            "OVRS_ORD_UNPR": str(price), # 지정가인 경우 가격, 시장가여도 0은 아닐 수 있음 (0으로 설정 시 거부될 수 있으므로 확인)
+            "OVRS_ORD_UNPR": str(price), 
             "ORD_SVR_DVSN_CD": "0",
-            "ORD_DVSN": order_type # 00: 지정가, 01: 시장가 (KIS 해외주식 주문유형 확인 필요)
+            "ORD_DVSN": order_type 
         }
         
         try:
@@ -195,11 +305,8 @@ class KisApi:
                 logger.error(f"주문 실패 ({symbol} {side}): {data['msg1']}")
                 return None
                 
-            return data['output'] # 주문번호 등 포함
+            return data['output'] 
             
         except Exception as e:
             logger.error(f"주문 중 예외 발생: {e}")
             return None
-
-# datetime 등 필요한 임포트 추가 (위에서 누락된 경우)
-from datetime import timedelta

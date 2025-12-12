@@ -450,8 +450,8 @@ def main():
         f.write(f"전환 매매 전략 백테스트 결과 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
         f.write("="*70 + "\n\n")
     
-    start_date = "2024-11-01"
-    end_date = "2025-12-03"
+    start_date = "2025-12-01"
+    end_date = "2025-12-13"
     interval = "1h"
     
     total_symbols = len(TARGET_SYMBOLS)

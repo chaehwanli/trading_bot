@@ -12,7 +12,7 @@ load_dotenv()
 KIS_APP_KEY = os.getenv("KIS_APP_KEY", "")
 KIS_APP_SECRET = os.getenv("KIS_APP_SECRET", "")
 KIS_ACCOUNT_NO = os.getenv("KIS_ACCOUNT_NO", "")  # 계좌번호 (8자리)
-KIS_BASE_URL = os.getenv("KIS_BASE_URL", "https://openapi.koreainvestment.com:9443") # 실전투자
+KIS_BASE_URL = os.getenv("KIS_BASE_URL", "") # 실전투자
 # KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443" # 모의투자
 
 # ========== 거래소 API 설정 ==========
