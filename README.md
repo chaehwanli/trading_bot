@@ -63,6 +63,21 @@ python main.py
 ## Result
 Check "result.txt" for more details
 
+## 한국 투자 증권의 미국장 거래 시간
+ 한국 투자 증권의 미국장 거래 시간이 고려되어야 함.
+  -. 주간거래(장전거래) 10:00 ~18:00
+     Summer Time : 10:00 ~ 17:00
+  -. 프리마켓(장전거래) 18:00 ~ 23:30 
+     Summer Time : 17:00 ~ 22:30
+  -. 정규장 :23:30 ~06:00
+     Summer Time : 22:30 ~ 05:00
+  -. 애프터마켓(정규장 종료 후 거래) : 06:00 ~07:00
+     Summer Time : 05:00 ~ 07:00
+  -. 애프터마켓 연장신청시 (정규장 종류후 거래) : 07:00 ~ 09:00
+     Summer Time : 07:00 ~ 09:00
+  -. 미국 Summer Time 고려해야 함.
+
+
 ## Type Classification
 아래 내용은 **기술지표 흐름(RSI/MACD)**, **변동성 특성**, **스윙 가능성(추세 전환 패턴)** 관점에서
 테슬라(TSLA), 엔비디아(NVDA), 애플(AAPL), 구글(GOOGL), AMD 다섯 종목의 **유형화(Type Classification)** 정리임.

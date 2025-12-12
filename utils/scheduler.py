@@ -31,7 +31,8 @@ class TradingScheduler:
         schedule.every().day.at("17:00").do(self._start_trading, trading_func)
         
         # 새벽 05:00 강제 청산
-        schedule.every().day.at("05:00").do(force_close_func)
+        if force_close_func:
+            schedule.every().day.at("05:00").do(force_close_func)
         
         # 거래 종료 시간 (새벽 5시)
         schedule.every().day.at("05:00").do(self._end_trading)

@@ -53,6 +53,47 @@ class TeslaReversalTradingBot:
         
         logger.info(f"Tesla 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
         
+    def _is_dst(self):
+        """미국 서머타임 체킹 (US/Eastern 기준)"""
+        eastern = pytz.timezone('US/Eastern')
+        now_eastern = datetime.now(eastern)
+        return bool(now_eastern.dst())
+
+    def _get_market_status(self):
+        """현재 시간 기준 장 상태 반환 (한국 시간 기준)"""
+        now = datetime.now(self.timezone)
+        current_time = now.time()
+        is_dst = self._is_dst()
+        
+        # 시간 변환을 위한 분 단위 계산
+        curr_min = current_time.hour * 60 + current_time.minute
+        
+        if is_dst: # Summer Time
+            # Daytime: 10:00 ~ 17:00
+            if 600 <= curr_min < 1020: return "DAYTIME"
+            # Premarket: 17:00 ~ 22:30
+            if 1020 <= curr_min < 1350: return "PREMARKET"
+            # Regular: 22:30 ~ 05:00 (Next day handled by overflow check if needed, but here we assume simple ranges for now. 
+            # Note: Regular crosses midnight local time. 22:30 is 1350. 05:00 is 300.
+            if 1350 <= curr_min or curr_min < 300: return "REGULAR"
+            # Aftermarket: 05:00 ~ 07:00
+            if 300 <= curr_min < 420: return "AFTERMARKET"
+            # Extended: 07:00 ~ 09:00
+            if 420 <= curr_min < 540: return "EXTENDED"
+        else: # Winter Time
+            # Daytime: 10:00 ~ 18:00
+            if 600 <= curr_min < 1080: return "DAYTIME"
+            # Premarket: 18:00 ~ 23:30
+            if 1080 <= curr_min < 1410: return "PREMARKET"
+            # Regular: 23:30 ~ 06:00
+            if 1410 <= curr_min or curr_min < 360: return "REGULAR"
+            # Aftermarket: 06:00 ~ 07:00
+            if 360 <= curr_min < 420: return "AFTERMARKET"
+            # Extended: 07:00 ~ 09:00
+            if 420 <= curr_min < 540: return "EXTENDED"
+            
+        return "CLOSED"
+
     def _get_current_price(self, symbol: str):
         """현재가 조회 (KIS API 우선 사용)"""
         price = self.kis.get_current_price(symbol)
@@ -82,16 +123,24 @@ class TeslaReversalTradingBot:
             if exit_reason:
                 logger.info(f"{self.strategy.current_etf_symbol} {exit_reason} 조건 충족")
                 
-                # 손절인 경우 전환 매매 실행
-                if exit_reason == "STOP_LOSS" and self.strategy.params.get("reverse_trigger", True):
-                    self._execute_reversal(exit_reason)
-                else:
-                    # 익절인 경우 일반 청산
-                    self._close_position(current_price, exit_reason)
+                # 손절/익절 모두 일반 청산 (전환 매매 비활성화)
+                # 요청사항 5: 손실로 청산한 후에 반대 포지션으로 전환하지 않는다.
+                self._close_position(current_price, exit_reason)
             
-            # 최대 보유 기간 확인
-            if self.strategy.check_max_hold_days2(datetime.now()):
-                self._close_position(current_price, "FORCE_CLOSE")
+            # 최대 보유 기간 확인 (요청사항 4)
+            # LONG: 48시간, SHORT: 24시간
+            if self.strategy.entry_time:
+                elapsed = datetime.now() - self.strategy.entry_time
+                elapsed_hours = elapsed.total_seconds() / 3600
+                
+                should_close = False
+                if self.strategy.current_position == "LONG" and elapsed_hours >= 48:
+                    should_close = True
+                elif self.strategy.current_position == "SHORT" and elapsed_hours >= 24:
+                    should_close = True
+                    
+                if should_close:
+                    self._close_position(current_price, "FORCE_CLOSE_TIME_LIMIT")
             
             # 최대 자본 손실률 확인
             if self.strategy.check_max_drawdown():
@@ -235,13 +284,12 @@ class TeslaReversalTradingBot:
         self.strategy.entry_quantity = None
     
     def execute_trading_strategy(self):
-        """거래 전략 실행 (17:00~18:00)"""
-        now = datetime.now(self.timezone)
-        current_hour = now.hour
+        """거래 전략 실행 (프리마켓 ~ 정규장)"""
+        market_status = self._get_market_status()
         
-        # 17:00~18:00: 종목선정 및 진입
-        if 17 <= current_hour < 18:
-            logger.info("전환 매매 전략 실행 시간 (17:00~18:00)")
+        # 요청사항 2: 프리마켓 시간 부터 시작
+        if market_status in ["PREMARKET", "REGULAR"]:
+            logger.info(f"거래 전략 실행 중 (Status: {market_status})")
             
             # 이미 포지션이 있으면 스킵
             if self.strategy.current_position:
@@ -313,18 +361,9 @@ class TeslaReversalTradingBot:
         # 포지션 모니터링 (항상 실행)
         self.monitor_position()
     
-    def force_close_all_positions(self):
-        """새벽 05:00 강제 청산"""
-        logger.info("새벽 05:00 강제 청산 시작")
-        
-        if self.strategy.current_position and self.strategy.current_etf_symbol:
-            target_symbol = self.strategy.current_etf_symbol
-            current_price = self._get_current_price(target_symbol)
-            
-            if current_price:
-                self._close_position(current_price, "FORCE_CLOSE")
-        
-        logger.info("새벽 05:00 강제 청산 완료")
+    
+    # 요청사항 3: 새벽 05:00 강제 청산 삭제됨
+    # def force_close_all_positions(self): ...
     
     def run(self):
         """봇 실행"""
@@ -332,10 +371,15 @@ class TeslaReversalTradingBot:
         self.is_running = True
         
         # 스케줄러 설정
+        # 스케줄러 설정
+        # 기본적으로 1분/5분 단위 등으로 execute_trading_strategy 및 monitor_position을 호출해야 함.
+        # 기존 Scheduler 구조가 Daily Task 등록 방식이라면, execute_trading_strategy 주기를 확인해야 함.
+        # 여기서는 기존 구조를 유지하되 force_close만 제거.
+        
         self.scheduler.schedule_daily_tasks(
             self.execute_trading_strategy,
             self.monitor_position,
-            self.force_close_all_positions
+            None # force_close 제거
         )
         
         # 메인 루프
