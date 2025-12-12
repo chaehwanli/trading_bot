@@ -14,6 +14,7 @@ from data.data_fetcher import DataFetcher
 from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
 from utils.logger import logger
+import pytz
 
 class ReversalBacktester:
     """전환 매매 전략 백테스트 클래스"""
@@ -24,6 +25,69 @@ class ReversalBacktester:
         self.trades = []
         self.equity_curve = []
         self.fee_rate = 0.0025  # 거래 수수료율 (예: 0.25%)
+        # Timezone 설정
+        self.timezone = pytz.timezone("Asia/Seoul")
+
+    def _is_dst(self, dt: datetime) -> bool:
+        """
+        주어진 날짜(dt)가 미국 DST(서머타임) 적용 기간인지 확인.
+        dt는 timezone-aware(Asia/Seoul 등) 또는 native datetime일 수 있음.
+        기준은 US/Eastern 시간으로 변환하여 확인.
+        """
+        eastern = pytz.timezone('US/Eastern')
+        
+        # dt가 timezone 정보가 없다면, 한국 시간으로 가정하고 localize
+        if dt.tzinfo is None:
+            dt = self.timezone.localize(dt)
+            
+        # US/Eastern으로 변환
+        dt_eastern = dt.astimezone(eastern)
+        return bool(dt_eastern.dst())
+
+    def _get_market_status(self, dt: datetime) -> str:
+        """
+        주어진 시간(dt)의 시장 상태 반환.
+        dt는 timezone-aware여야 하며, 이를 Korea Standard Time(KST)으로 변환하여
+        00:00~24:00 기준 분(minute)을 계산해 상태를 판별한다.
+        """
+        if dt.tzinfo is None:
+            # naive라면 KST localizing (가정)
+            dt = self.timezone.localize(dt)
+        
+        # KST로 변환
+        dt_kr = dt.astimezone(self.timezone)
+        
+        current_time = dt_kr.time()
+        curr_min = current_time.hour * 60 + current_time.minute
+        
+        is_dst = self._is_dst(dt)
+        
+        if is_dst: # Summer Time (US DST Active)
+            # Daytime: 10:00 ~ 17:00
+            if 600 <= curr_min < 1020: return "DAYTIME"
+            # Premarket: 17:00 ~ 22:30
+            if 1020 <= curr_min < 1350: return "PREMARKET"
+            # Regular: 22:30 ~ 05:00 (Next day)
+            # 22:30 = 1350, 24:00 = 1440. 05:00 = 300.
+            if 1350 <= curr_min or curr_min < 300: return "REGULAR"
+            # Aftermarket: 05:00 ~ 07:00
+            if 300 <= curr_min < 420: return "AFTERMARKET"
+            # Extended: 07:00 ~ 09:00
+            if 420 <= curr_min < 540: return "EXTENDED"
+        else: # Winter Time (US DST Inactive)
+            # Daytime: 10:00 ~ 18:00
+            if 600 <= curr_min < 1080: return "DAYTIME"
+            # Premarket: 18:00 ~ 23:30
+            if 1080 <= curr_min < 1410: return "PREMARKET"
+            # Regular: 23:30 ~ 06:00 (Next day)
+            # 23:30 = 1410. 06:00 = 360.
+            if 1410 <= curr_min or curr_min < 360: return "REGULAR"
+            # Aftermarket: 06:00 ~ 07:00
+            if 360 <= curr_min < 420: return "AFTERMARKET"
+            # Extended: 07:00 ~ 09:00
+            if 420 <= curr_min < 540: return "EXTENDED"
+            
+        return "CLOSED"
     
     def run_backtest(
         self,
@@ -140,11 +204,19 @@ class ReversalBacktester:
             #        self.strategy.current_position
             #    )
             
+            # 시장 시간 체크
+            market_status = self._get_market_status(current_time)
+            is_tradable = market_status in ["PREMARKET", "REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
+            
+            # 디버깅용 출력 (초반)
+            if i < 60:
+                 print(f"DEBUG: {current_time} Status={market_status} Tradable={is_tradable} DST={self._is_dst(current_time)}")
+            
             signal = signal_data['signal']
             confidence = signal_data['confidence']
             
-            # 포지션이 없는 경우 진입
-            if not self.strategy.current_position:
+            # 포지션이 없는 경우 진입 (거래 가능 시간에만)
+            if not self.strategy.current_position and is_tradable:
                 if signal == SignalType.BUY and confidence > 0.5:
                     quantity = self.strategy.calculate_position_size(etf_long_price, is_reversal=False)
                     if quantity > 0:
@@ -183,36 +255,40 @@ class ReversalBacktester:
                 exit_reason = self.strategy.check_stop_loss_take_profit2(current_etf_price, current_etf_multiple)
                 
                 if exit_reason:
-                    # 손절인 경우 전환 매매
-                    if exit_reason == "STOP_LOSS" and self.strategy.params.get("reverse_trigger", True):
-                        if self.strategy.can_reverse2(current_time):
-                            result = self.strategy.execute_reversal(
-                                original_symbol=original_symbol,
-                                etf_long=etf_long,
-                                etf_short=etf_short,
-                                original_data=original_current_data,
-                                etf_long_price=etf_long_price,
-                                etf_short_price=etf_short_price,
-                                current_time=current_time,
-                                reason=f"손절 전환 ({exit_reason})"
-                            )
-                            if result:
-                                print(f"🔄 [{current_time.strftime('%Y-%m-%d %H:%M')}] 전환 매매: {result['from_etf']} -> {result['to_etf']}")
-                        else:
-                            # 전환 불가 시 청산
-                            self._close_position(current_time, current_etf_price, exit_reason)
+                    # 손절/익절인 경우 무조건 청산 (전환 안함)
+                    if exit_reason == "STOP_LOSS":
+                        self._close_position(current_time, current_etf_price, exit_reason)
                     elif exit_reason == "TAKE_PROFIT":
                         # 익절인 경우 청산
                         self._close_position(current_time, current_etf_price, exit_reason)
                     else:
                         # 기타 사유 청산
-                        if signal == SignalType.SELL and confidence >= 0.7:
-                            print(f"🔻 [{current_time.strftime('%Y-%m-%d %H:%M')}] {self.strategy.current_etf_symbol} 강한 손절 청산 신호 감지")
-                            self._close_position(current_time, current_etf_price, exit_reason)
+                        self._close_position(current_time, current_etf_price, exit_reason)
                 
-                # 최대 보유 기간 확인
-                elif self.strategy.check_max_hold_days2(current_time):
-                    self._close_position(current_time, current_etf_price, "FORCE_CLOSE")
+                # 최대 보유 기간 확인 (24시간/48시간)
+                elif self.strategy.entry_time:
+                    # entry_time과 current_time을 비교
+                    # entry_time이 naive일 경우 localize
+                    entry_t = self.strategy.entry_time
+                    curr_t = current_time
+                    
+                    if entry_t.tzinfo is None:
+                        # 백테스트 데이터는 naive일 수 있음. 
+                        # current_time도 naive라면 그대로 연산.
+                        # 만약 하나만 timezone aware라면 문제됨.
+                        pass
+                    
+                    elapsed = curr_t - entry_t
+                    elapsed_hours = elapsed.total_seconds() / 3600
+                    
+                    should_close = False
+                    if self.strategy.current_position == "LONG" and elapsed_hours >= 48:
+                        should_close = True
+                    elif self.strategy.current_position == "SHORT" and elapsed_hours >= 24:
+                        should_close = True
+                        
+                    if should_close:
+                        self._close_position(current_time, current_etf_price, "FORCE_CLOSE_TIME_LIMIT")
             
             # 자본 추적
             if self.strategy.current_position and self.strategy.entry_price:
