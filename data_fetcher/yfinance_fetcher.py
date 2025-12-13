@@ -47,6 +47,7 @@ class YFinanceFetcher:
                                        # Actually backtester often uses 'Close'. 
                                        # If we use auto_adjust=True, 'Close' is adjusted. 
                                        # Let's use auto_adjust=True for simplicity.
+                    prepost=True,      # Include pre-market and after-market data
                     progress=False
                 )
                 
