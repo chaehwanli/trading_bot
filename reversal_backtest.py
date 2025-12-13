@@ -420,9 +420,10 @@ def main():
     parser.add_argument("--source", type=str, choices=["kis", "yfinance"], default="kis", help="Data source")
     args = parser.parse_args()
 
-    # 결과 파일 초기화
-    with open("result.txt", "w", encoding="utf-8") as f:
-        f.write(f"전환 매매 전략 백테스트 결과 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+    # 결과 파일 초기화 (source에 따라 다른 파일명 사용)
+    result_file = f"{args.source}_result.txt"
+    with open(result_file, "w", encoding="utf-8") as f:
+        f.write(f"전환 매매 전략 백테스트 결과 [Source: {args.source}] ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
         f.write("="*70 + "\n\n")
     
     start_date = "2025-11-17"
@@ -462,7 +463,7 @@ def main():
         )
         
         # 결과 파일에 누적
-        with open("result.txt", "a", encoding="utf-8") as f:
+        with open(result_file, "a", encoding="utf-8") as f:
             f.write(f"[{i+1}/{total_symbols}] {original_symbol} 결과\n")
             f.write(f"LONG: {etf_long} ({etf_long_multiple}) / SHORT: {etf_short} ({etf_short_multiple})\n")
             
@@ -535,7 +536,7 @@ def main():
         if results:
             print(f"✅ {original_symbol} 완료: 총 손익 ${results['total_pnl']:,.2f}")
             
-    print(f"\n🎉 모든 백테스트 완료! 결과가 result.txt에 저장되었습니다.")
+    print(f"\n🎉 모든 백테스트 완료! 결과가 {result_file}에 저장되었습니다.")
 
 if __name__ == "__main__":
     main()
