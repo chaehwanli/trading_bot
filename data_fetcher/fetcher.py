@@ -176,7 +176,7 @@ class KisFetcher:
                             return df
             
             # If failed or empty, try next exchange
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)
         
         logger.warning(f"Could not find {symbol} in NAS, NYS, AMS or API error.")
         return None
@@ -206,6 +206,16 @@ class KisFetcher:
         }
         nmin = interval_map.get(interval, "60")
         
+        # Clean up existing file before starting incremental fetch
+        # This prevents mixing old/corrupt data if the process was interrupted previously.
+        file_path = f"data/{symbol}/{interval}.csv"
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Removed stale file {file_path} before start.")
+            except Exception as e:
+                logger.warning(f"Could not remove stale file {file_path}: {e}")
+        
         exchanges = ["NAS", "NYS", "AMS"]
         
         
@@ -215,6 +225,8 @@ class KisFetcher:
             records = []
             
             # Limit loop just in case to avoid infinite
+            no_progress_count = 0
+            
             for _ in range(1000):
                 params = {
                     "AUTH": "",
@@ -244,10 +256,30 @@ class KisFetcher:
                         if resp.status == 200 and data.get('rt_cd') == '0':
                             output = data.get('output2', [])
                             if not output:
-                                break
+                                # If output is empty but we haven't reached start_date, 
+                                # try to force jump to previous day?
+                                # API might return empty if no data for that specific key context
+                                # But let's check strict break first
                                 
+                                # Manual retry logic for deep history:
+                                # if we have records, use the last record's time to force next key
+                                if records and records[-1]['datetime'] > start_date:
+                                     # Force clean next key construction
+                                     last_dt = records[-1]['datetime']
+                                     # Subtract 1 minute to avoid overlap if possilbe or just use it
+                                     # Correct format: YYYYMMDDHHMMSS
+                                     next_key = last_dt.strftime('%Y%m%d%H%M%S')
+                                     logger.info(f"Empty output but not at start date. Forcing Next Key: {next_key}")
+                                     no_progress_count += 1
+                                     if no_progress_count > 3:
+                                         break
+                                     await asyncio.sleep(0.5)
+                                     continue
+                                else:
+                                    break
                             
-                            
+                            no_progress_count = 0
+                                
                             # Parse this batch
                             batch_records = []
                             min_date_in_batch = None
@@ -304,14 +336,13 @@ class KisFetcher:
                             logger.error(f"API Error or finished: {data.get('msg1')}")
                             next_key = None
             
-                if not records:
-                    break
-                
                 if not next_key:
                     break
                     
-                await asyncio.sleep(0.5)
-            
+                # Add delay to prevent rate limit (Transactions per second)
+                # KIS API limit is strictly enforced.
+                await asyncio.sleep(2.0)
+
             if records:
                 logger.info(f"Total fetched {len(records)} records for {symbol} on {excd}")
                 # Since we saved incrementally, we can just return the full DF constructed
@@ -538,5 +569,8 @@ class KisFetcher:
         logger.info(f"Successfully saved data to {file_path}")
 
     async def download_all(self, symbols, interval, period="1y"):
-        tasks = [self.fetch_ohlcv(sym, interval, period) for sym in symbols]
-        await asyncio.gather(*tasks)
+        for sym in symbols:
+            await self.fetch_ohlcv(sym, interval, period)
+            # Add a slight delay to avoid hitting KIS API rate limits (e.g. 20 req/sec or similar)
+            # "Transactions per second exceeded" error prevention.
+            await asyncio.sleep(3)

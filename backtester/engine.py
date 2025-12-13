@@ -4,15 +4,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def prepare_dataset(symbol: str, interval: str, tz: str = "UTC", ind_params: dict = None) -> pd.DataFrame:
+def prepare_dataset(symbol: str, interval: str, tz: str = "UTC", ind_params: dict = None, source: str = "kis") -> pd.DataFrame:
     """
     Prepares a dataset for backtesting.
     :param ind_params: Dictionary of indicator parameters (e.g. {'rsi': {'length': 5}})
+    :param source: 'kis' or 'yfinance'
     """
     if ind_params is None:
         ind_params = {}
 
-    file_path = f"data/{symbol}/{interval}.csv"
+    file_path = f"data/{source}/{symbol}/{interval}.csv"
     
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Data file for {symbol} ({interval}) not found at {file_path}")

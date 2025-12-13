@@ -29,7 +29,7 @@ async def rate_limited_sleep(requests_per_sec=1):
     """
     # KIS API limit is roughly 20 calls/sec for some endpoints, but safer to go slower.
     # 0.1s sleep is usually safe for sequential calls in a loop.
-    await asyncio.sleep(1.0 / requests_per_sec)
+    await asyncio.sleep(2.0 / requests_per_sec)
 
 def format_ohlcv_colums(df):
     """Standardizes dataframe columns to lower case."""
