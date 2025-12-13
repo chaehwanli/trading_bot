@@ -208,7 +208,7 @@ class KisFetcher:
         
         # Clean up existing file before starting incremental fetch
         # This prevents mixing old/corrupt data if the process was interrupted previously.
-        file_path = f"data/{symbol}/{interval}.csv"
+        file_path = f"data/kis/{symbol}/{interval}.csv"
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -539,7 +539,7 @@ class KisFetcher:
                 return df
 
     def _append_to_file(self, symbol, interval, df):
-        dir_path = f"data/{symbol}"
+        dir_path = f"data/kis/{symbol}"
         os.makedirs(dir_path, exist_ok=True)
         file_path = f"{dir_path}/{interval}.csv"
         
@@ -555,7 +555,7 @@ class KisFetcher:
         # With incremental save, this might just final overwrite to ensure sorting/dedup?
         # Or we can skip if we trust append?
         # Better to do a final clean save to ensure no duplicates and correct sort.
-        dir_path = f"data/{symbol}"
+        dir_path = f"data/kis/{symbol}"
         os.makedirs(dir_path, exist_ok=True)
         file_path = f"{dir_path}/{interval}.csv"
         

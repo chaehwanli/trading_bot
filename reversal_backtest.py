@@ -6,11 +6,13 @@ import sys
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.settings import TARGET_SYMBOLS, get_etf_by_original, REVERSAL_STRATEGY_PARAMS
 from data.data_fetcher import DataFetcher
+from backtester.engine import prepare_dataset
 from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
 from utils.logger import logger
@@ -19,9 +21,10 @@ import pytz
 class ReversalBacktester:
     """전환 매매 전략 백테스트 클래스"""
     
-    def __init__(self, params: dict = None):
-        self.data_fetcher = DataFetcher()
+    def __init__(self, params: dict = None, source: str = "kis"):
+        # self.data_fetcher = DataFetcher() # Deprecated
         self.strategy = ReversalStrategy(params=params)
+        self.source = source
         self.trades = []
         self.equity_curve = []
         self.fee_rate = 0.0025  # 거래 수수료율 (예: 0.25%)
@@ -118,20 +121,16 @@ class ReversalBacktester:
         print(f"초기 자본: ${self.strategy.initial_capital:.2f}")
         print(f"{'='*70}\n")
         
-        # 데이터 수집
-        print("데이터 수집 중...")
-        original_data = self.data_fetcher.get_historical_data(
-            original_symbol, period="max", interval=interval
-        )
-        etf_long_data = self.data_fetcher.get_historical_data(
-            etf_long, period="max", interval=interval
-        )
-        etf_short_data = self.data_fetcher.get_historical_data(
-            etf_short, period="max", interval=interval
-        )
-        
-        if original_data is None or etf_long_data is None or etf_short_data is None:
-            print("❌ 데이터 수집 실패")
+        # 데이터 수집 (로컬 CSV 로드)
+        print(f"데이터 로딩 중 (Local CSV from {self.source})...")
+        try:
+            # prepare_dataset loads data and applies indicators if needed
+            original_data = prepare_dataset(original_symbol, interval, source=self.source)
+            etf_long_data = prepare_dataset(etf_long, interval, source=self.source)
+            etf_short_data = prepare_dataset(etf_short, interval, source=self.source)
+
+        except Exception as e:
+            print(f"❌ 데이터 로딩 실패: {e}")
             return None
         
         # 날짜 필터링
@@ -187,22 +186,6 @@ class ReversalBacktester:
                 original_current_data,
                 self.strategy.current_position
             )
-
-            #if not self.strategy.current_position:
-            #    signal_data = self.strategy.signal_generator.generate_signal(
-            #        original_current_data,
-            #        self.strategy.current_position
-            #    )
-            #elif self.strategy.current_position == "LONG":
-            #    signal_data = self.strategy.signal_generator.generate_signal(
-            #        etf_long_current_data,
-            #        self.strategy.current_position
-            #    )
-            #else:  # SHORT
-            #    signal_data = self.strategy.signal_generator.generate_signal(
-            #        etf_short_current_data,
-            #        self.strategy.current_position
-            #    )
             
             # 시장 시간 체크
             market_status = self._get_market_status(current_time)
@@ -298,13 +281,6 @@ class ReversalBacktester:
                     current_etf_price = etf_short_price
 
                 pnl_pct = ((current_etf_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
-
-#                if self.strategy.current_position == "LONG":
-#                    current_etf_price = etf_long_price
-#                    pnl_pct = ((current_etf_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
-#                else:
-#                    current_etf_price = etf_short_price
-#                    pnl_pct = ((self.strategy.entry_price - current_etf_price) / self.strategy.entry_price) * 100
                 
                 pnl = self.strategy.entry_quantity * self.strategy.entry_price * (pnl_pct / 100)
                 estimated_capital = self.strategy.capital + self.strategy.entry_quantity * self.strategy.entry_price + pnl
@@ -350,10 +326,6 @@ class ReversalBacktester:
         fee = trade_amount * self.fee_rate
         
         pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
-        #if self.strategy.current_position == "LONG":
-        #    pnl_pct = ((exit_price - self.strategy.entry_price) / self.strategy.entry_price) * 100
-        #else:
-        #    pnl_pct = ((self.strategy.entry_price - exit_price) / self.strategy.entry_price) * 100
         
         pnl = self.strategy.entry_quantity * self.strategy.entry_price * (pnl_pct / 100)
         self.strategy.capital += self.strategy.entry_quantity * self.strategy.entry_price + pnl - fee
@@ -444,13 +416,16 @@ class ReversalBacktester:
 
 def main():
     """백테스트 메인 함수"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", type=str, choices=["kis", "yfinance"], default="kis", help="Data source")
+    args = parser.parse_args()
 
     # 결과 파일 초기화
     with open("result.txt", "w", encoding="utf-8") as f:
         f.write(f"전환 매매 전략 백테스트 결과 ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
         f.write("="*70 + "\n\n")
     
-    start_date = "2025-12-01"
+    start_date = "2025-11-17"
     end_date = "2025-12-13"
     interval = "1h"
     
@@ -470,7 +445,7 @@ def main():
         params["reverse_trigger"] = False
         params["reverse_mode"] = "full"
         
-        backtester = ReversalBacktester(params=params)
+        backtester = ReversalBacktester(params=params, source=args.source)
         
         print(f"\n{'='*20} [{i+1}/{total_symbols}] {original_symbol} 백테스트 시작 {'='*20}")
         print(f"LONG: {etf_long} ({etf_long_multiple}) / SHORT: {etf_short} ({etf_short_multiple})")
