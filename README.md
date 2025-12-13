@@ -239,3 +239,155 @@ Check "result.txt" for more details
 
 ---
 
+# Backtest Result Differences Analysis
+## KIS vs YFinance Data Comparison
+### Executive Summary
+The backtest results differ significantly between KIS and YFinance data sources due to three main factors:
+
+- Data Coverage: Different historical data ranges
+- Timezone/Timestamp Alignment: Different data collection times
+- Price Discrepancies: Different price values for the same symbols
+
+## Key Findings
+### 1. Data Coverage Difference
+TSLA Example:
+- KIS Data: 384 rows
+
+- Start: 2025-11-07 18:00:00+09:00
+- End: 2025-12-13 08:00:00+09:00
+- Coverage: ~1 month of data
+
+- YFinance Data: 1739 rows
+
+- Start: 2024-12-13 23:30:00+09:00
+- End: 2025-12-13 05:30:00+09:00
+- Coverage: ~1 year of data
+
+Impact: The backtest period (2025-11-17 ~ 2025-12-13) falls within different data availability:
+
+- YFinance has full coverage for the backtest period
+- KIS only has partial coverage starting from 2025-11-07
+
+### 2. Timestamp Alignment Issues
+KIS Data Pattern:
+```
+2025-11-07 18:00:00+09:00  (6:00 PM KST)
+2025-11-07 19:00:00+09:00  (7:00 PM KST)
+2025-11-07 20:00:00+09:00  (8:00 PM KST)
+
+```
+YFinance Data Pattern:
+```
+2024-12-13 23:30:00+09:00  (11:30 PM KST)
+2024-12-14 00:30:00+09:00  (12:30 AM KST)
+2024-12-14 01:30:00+09:00  (1:30 AM KST)
+```
+
+Observations:
+
+- KIS data appears to be on the hour (18:00, 19:00, 20:00)
+- YFinance data is on the half-hour (23:30, 00:30, 01:30)
+- This 30-minute offset means they're capturing different market moments
+
+### 3. Price Value Differences
+TSLZ (Tesla Short ETF) Comparison:
+KIS Data (2025-11-07 18:00):
+
+- Open: 12.64
+- High: 12.82
+- Low: 12.48
+- Close: 12.76
+
+YFinance Data (2024-12-13 23:30):
+
+- Open: 51.37
+- High: 52.40
+- Low: 48.80
+- Close: 49.30
+
+Note: These are from different dates, but even when comparing similar timeframes, there are significant price differences that could be due to:
+
+- Different data sources (KIS API vs Yahoo Finance)
+- Potential stock splits or adjustments
+- Data quality issues
+
+# Backtest Result Comparison
+## TSLA Example (from result files):
+
+KIS Result:
+```
+총 거래: 9회
+승률: 55.56% (5/9)
+최종 자본: $1,043.34
+총 손익: $-156.66
+```
+
+YFinance Result:
+```
+총 거래: 4회
+승률: 50.00% (2/4)
+최종 자본: $1,269.28
+총 손익: $69.28
+```
+
+Difference: $225.94 (YFinance outperformed by 18.8%)
+
+## Root Causes
+### 1. KIS API Limitations
+The KIS API appears to have limited historical data availability:
+
+- Only provides ~1 month of minute/hourly data
+- May have rate limits that prevent fetching deeper history
+- The _fetch_overseas_minute_data function in fetcher.py shows complex pagination logic, suggesting API constraints
+
+### 2. Data Source Reliability
+- YFinance: Provides comprehensive historical data (1+ years)
+- KIS: Limited to recent data, possibly due to API tier or endpoint limitations
+
+### 3. Market Hours Alignment
+The different timestamps suggest:
+
+- KIS might be capturing Korean market hours or specific trading sessions
+- YFinance captures US market hours (23:30 KST = 14:30 EST during winter)
+
+## Recommendations
+### For Accurate Backtesting:
+- Use YFinance for Historical Analysis
+
+- Better data coverage (1+ years)
+- More reliable for backtesting strategies
+- Consistent timestamp alignment
+
+- Use KIS for Live Trading
+
+- Real-time data from Korean broker
+- Better for production trading
+- Aligns with actual trading capabilities
+
+- Data Validation
+
+- Always check data coverage before running backtests
+- Verify timestamp alignment across all symbols
+- Compare price ranges to ensure data quality
+
+- Hybrid Approach
+
+- Develop and backtest strategies using YFinance data
+- Validate with KIS data for recent periods
+- Use KIS for live trading execution
+
+## Technical Details
+### File Locations:
+- KIS Data: /data/kis/{symbol}/1h.csv
+- YFinance Data: /data/yfinance/{symbol}/1h.csv
+- KIS Results: kis_result.txt
+- YFinance Results: yfinance_result.txt
+
+### Data Fetchers:
+- KIS: data_fetcher/fetcher.py (KisFetcher class)
+- YFinance: data_fetcher/yfinance_fetcher.py (YFinanceFetcher class)
+
+### Known Issues:
+- KIS API has pagination complexity for historical data
+- Some symbols missing in KIS data (e.g., TSLT, BTCL, NVDX)
+- Timezone handling differs between sources
