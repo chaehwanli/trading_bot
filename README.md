@@ -251,13 +251,13 @@ The backtest results differ significantly between KIS and YFinance data sources 
 ## Key Findings
 ### 1. Data Coverage Difference
 TSLA Example:
-- KIS Data: 384 rows
+1. KIS Data: 384 rows
 
 - Start: 2025-11-07 18:00:00+09:00
 - End: 2025-12-13 08:00:00+09:00
 - Coverage: ~1 month of data
 
-- YFinance Data: 1739 rows
+2. YFinance Data: 1739 rows
 
 - Start: 2024-12-13 23:30:00+09:00
 - End: 2025-12-13 05:30:00+09:00
@@ -384,25 +384,25 @@ The different timestamps suggest:
 
 ## Recommendations
 ### For Accurate Backtesting:
-- Use YFinance for Historical Analysis
+1. Use YFinance for Historical Analysis
 
 - Better data coverage (1+ years)
 - More reliable for backtesting strategies
 - Consistent timestamp alignment
 
-- Use KIS for Live Trading
+2. Use KIS for Live Trading
 
 - Real-time data from Korean broker
 - Better for production trading
 - Aligns with actual trading capabilities
 
-- Data Validation
+3. Data Validation
 
 - Always check data coverage before running backtests
 - Verify timestamp alignment across all symbols
 - Compare price ranges to ensure data quality
 
-- Hybrid Approach
+4. Hybrid Approach
 
 - Develop and backtest strategies using YFinance data
 - Validate with KIS data for recent periods
