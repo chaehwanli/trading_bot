@@ -17,6 +17,13 @@ from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
 from utils.logger import logger
 import pytz
+import pandas_market_calendars as mcal
+
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=".*break_start.*break_end.*"
+)
 
 class ReversalBacktester:
     """전환 매매 전략 백테스트 클래스"""
@@ -30,6 +37,34 @@ class ReversalBacktester:
         self.fee_rate = 0.0025  # 거래 수수료율 (예: 0.25%)
         # Timezone 설정
         self.timezone = pytz.timezone("Asia/Seoul")
+        
+        # 거래일 캘린더 (백테스트 시작 시 1회 생성)
+        self.trading_days = None          # list[date]
+        self.trading_day_index = None     # dict[date, int]
+
+        # 강제청산 날짜
+        self.forced_close_date = None
+
+    def build_trading_calendar(self, start_dt, end_dt, market: str):
+        """
+        거래일 캘린더를 1회 생성
+        """
+        if market == "US":
+            cal = mcal.get_calendar("NYSE")
+        elif market == "KR":
+            cal = mcal.get_calendar("XKRX")
+        else:
+            raise ValueError(f"Unsupported market: {market}")
+
+        schedule = cal.schedule(
+            start_date=start_dt.date(),
+            end_date=end_dt.date()
+        )
+
+        self.trading_days = list(schedule.index.date)
+        self.trading_day_index = {
+            d: i for i, d in enumerate(self.trading_days)
+        }
 
     def _is_dst(self, dt: datetime) -> bool:
         """
@@ -156,6 +191,13 @@ class ReversalBacktester:
         common_index = original_data.index.intersection(etf_long_data.index).intersection(etf_short_data.index)
         common_index = common_index.sort_values()
         
+        # 거래일 캘린더 생성 (1회)
+        self.build_trading_calendar(
+            start_dt=common_index[0],
+            end_dt=common_index[-1],
+            market="US"   # ETF 기준 (현재 코드 기준)
+        )
+        
         # 백테스트 실행
         for i in range(50, len(common_index)):
             current_time = common_index[i]
@@ -214,6 +256,18 @@ class ReversalBacktester:
                         self.strategy.entry_quantity = quantity
                         
                         print(f"📈 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_long} 롱 진입 @ ${etf_long_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})")
+
+                        # === 강제청산 날짜 계산 (LONG) ===
+                        entry_date = current_time.date()
+                        idx = self.trading_day_index.get(entry_date)
+
+                        if idx is not None:
+                            max_hold_days_long = 2
+                            close_idx = idx + max_hold_days_long
+                            if close_idx < len(self.trading_days):
+                                self.forced_close_date = self.trading_days[close_idx]
+                            else:
+                                self.forced_close_date = self.trading_days[-1]
                 
                 elif signal == SignalType.SELL and confidence > 0.5:
                     quantity = self.strategy.calculate_position_size(etf_short_price, is_reversal=False)
@@ -229,6 +283,18 @@ class ReversalBacktester:
                         self.strategy.entry_quantity = quantity
                         
                         print(f"📉 [{current_time.strftime('%Y-%m-%d %H:%M')}] {original_symbol} -> {etf_short} 숏 진입 @ ${etf_short_price:.2f} x {quantity:.2f} (수수료: ${fee:.2f})")
+
+                        # === 강제청산 날짜 계산 (SHORT) ===
+                        entry_date = current_time.date()
+                        idx = self.trading_day_index.get(entry_date)
+
+                        if idx is not None:
+                            max_hold_days_short = 2
+                            close_idx = idx + max_hold_days_short
+                            if close_idx < len(self.trading_days):
+                                self.forced_close_date = self.trading_days[close_idx]
+                            else:
+                                self.forced_close_date = self.trading_days[-1]
             
             # 포지션 모니터링
             if self.strategy.current_position:
@@ -247,32 +313,16 @@ class ReversalBacktester:
                     else:
                         # 기타 사유 청산
                         self._close_position(current_time, current_etf_price, exit_reason)
-                
-                # 최대 보유 기간 확인 (24시간/48시간)
-                elif self.strategy.entry_time:
-                    # entry_time과 current_time을 비교
-                    # entry_time이 naive일 경우 localize
-                    entry_t = self.strategy.entry_time
-                    curr_t = current_time
-                    
-                    if entry_t.tzinfo is None:
-                        # 백테스트 데이터는 naive일 수 있음. 
-                        # current_time도 naive라면 그대로 연산.
-                        # 만약 하나만 timezone aware라면 문제됨.
-                        pass
-                    
-                    elapsed = curr_t - entry_t
-                    elapsed_hours = elapsed.total_seconds() / 3600
-                    
-                    should_close = False
-                    if self.strategy.current_position == "LONG" and elapsed_hours >= 48:
-                        should_close = True
-                    elif self.strategy.current_position == "SHORT" and elapsed_hours >= 24:
-                        should_close = True
-                        
-                    if should_close:
-                        self._close_position(current_time, current_etf_price, "FORCE_CLOSE_TIME_LIMIT")
-            
+
+                # === 거래일 기준 강제청산 ===
+                if self.strategy.current_position and self.forced_close_date:
+                    if current_time.date() >= self.forced_close_date:
+                        self._close_position(
+                            current_time,
+                            current_etf_price,
+                            "FORCE_CLOSE_TRADING_DAY_LIMIT"
+                        )
+
             # 자본 추적
             if self.strategy.current_position and self.strategy.entry_price:
                 if self.strategy.current_position == "LONG":
@@ -316,7 +366,7 @@ class ReversalBacktester:
             'total_pnl': self.strategy.capital - self.strategy.initial_capital,
             'total_fee': sum(t.get('fee', 0) for t in self.strategy.trade_history)
         }
-    
+
     def _close_position(self, exit_time, exit_price: float, reason: str):
         """포지션 청산"""
         if not self.strategy.current_position or not self.strategy.entry_price:
@@ -353,6 +403,9 @@ class ReversalBacktester:
         self.strategy.entry_price = None
         self.strategy.entry_time = None
         self.strategy.entry_quantity = None
+
+        # 강제청산 날짜 초기화
+        self.forced_close_date = None
     
     def _print_results(self):
         """백테스트 결과 출력"""
