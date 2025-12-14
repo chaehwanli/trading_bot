@@ -291,9 +291,9 @@ REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_1X_STOP_LOSS_RATE = -0.05  # 손절 비율 (-2%)
-REVERSAL_2X_STOP_LOSS_RATE = -0.1  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.2  # 익절 비율 (+8%)
+REVERSAL_1X_STOP_LOSS_RATE = -0.1  # 손절 비율 (-2%)
+REVERSAL_2X_STOP_LOSS_RATE = -0.2  # 손절 비율 (-2%)
+REVERSAL_TAKE_PROFIT_RATE = 0.5  # 익절 비율 (+8%)
 REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
