@@ -36,8 +36,8 @@ TARGET_SYMBOLS = [
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
         "LONG_MULTIPLE": "2",
-        "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
-        "SHORT_MULTIPLE": "-2"
+        "SHORT": "TSLS",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
     }
 ]
 
@@ -310,9 +310,9 @@ REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_1X_STOP_LOSS_RATE = -0.1  # 손절 비율 (-2%)
-REVERSAL_2X_STOP_LOSS_RATE = -0.2  # 손절 비율 (-2%)
-REVERSAL_TAKE_PROFIT_RATE = 0.5  # 익절 비율 (+8%)
+REVERSAL_1X_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
+REVERSAL_2X_STOP_LOSS_RATE = -0.1  # 손절 비율 (-2%)
+REVERSAL_TAKE_PROFIT_RATE = 0.4  # 익절 비율 (+8%)
 REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
