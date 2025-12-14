@@ -38,6 +38,24 @@ TARGET_SYMBOLS = [
         "LONG_MULTIPLE": "2",
         "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
         "SHORT_MULTIPLE": "-2"
+    }
+]
+
+"""
+TARGET_SYMBOLS = [
+    {
+        "ORIGINAL": "COIN",  # 원본 주식: BitCoin
+        "LONG": "BTCL",      # 2x 롱 ETF: Direxion Daily BTC Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "BTCZ",      # 2x 숏 ETF: Direxion Daily BTC Bear 1X Shares
+        "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "TSLA",  # 원본 주식: Tesla
+        "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
+        "LONG_MULTIPLE": "2",
+        "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
     },
     {
         "ORIGINAL": "NVDA",  # 원본 주식: Nvidia
@@ -203,6 +221,7 @@ TARGET_SYMBOLS = [
     #     "SHORT_MULTIPLE": -1
     # }
 ]
+"""
 
 # 편의 함수: 모든 ETF 심볼 리스트 반환
 def get_all_etf_symbols():
