@@ -418,6 +418,9 @@ def main():
     """백테스트 메인 함수"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=str, choices=["kis", "yfinance"], default="kis", help="Data source")
+    parser.add_argument("--start-date", type=str, default=None, help="Backtest start date (YYYY-MM-DD). Default: 1 year ago")
+    parser.add_argument("--end-date", type=str, default=None, help="Backtest end date (YYYY-MM-DD). Default: today")
+    parser.add_argument("--use-all-data", action="store_true", help="Use all available data from files (ignores start/end date)")
     args = parser.parse_args()
 
     # 결과 파일 초기화 (source에 따라 다른 파일명 사용)
@@ -426,9 +429,34 @@ def main():
         f.write(f"전환 매매 전략 백테스트 결과 [Source: {args.source}] ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
         f.write("="*70 + "\n\n")
     
-    start_date = "2025-11-17"
-    end_date = "2025-12-13"
     interval = "1h"
+    
+    # 백테스트 기간 설정
+    if args.use_all_data:
+        # 데이터 파일에서 실제 날짜 범위를 읽어옴
+        # 첫 번째 심볼의 데이터로 날짜 범위 확인
+        first_symbol = TARGET_SYMBOLS[0]["ORIGINAL"]
+        try:
+            sample_data = prepare_dataset(first_symbol, interval, source=args.source)
+            start_date = sample_data.index.min().strftime("%Y-%m-%d")
+            end_date = sample_data.index.max().strftime("%Y-%m-%d")
+            logger.info(f"Using all available data: {start_date} to {end_date}")
+        except Exception as e:
+            logger.warning(f"Could not read date range from data files: {e}. Using default 1 year.")
+            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            end_date = datetime.now().strftime("%Y-%m-%d")
+    else:
+        # 수동 지정 또는 기본값
+        if args.end_date:
+            end_date = args.end_date
+        else:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        if args.start_date:
+            start_date = args.start_date
+        else:
+            # 기본값: 1년 전
+            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
     
     total_symbols = len(TARGET_SYMBOLS)
 
