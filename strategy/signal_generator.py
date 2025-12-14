@@ -193,8 +193,8 @@ class SignalGenerator:
         # RSI 과매수/과매도 확인
         rsi_oversold = rsi < RSI_OVERSOLD
         rsi_overbought = rsi > RSI_OVERBOUGHT
-        rsi_neutral_bought = RSI_MIDDLE <= rsi <= RSI_OVERBOUGHT
-        rsi_neutral_sold = RSI_OVERSOLD <= rsi <= (RSI_MIDDLE - 1) 
+        rsi_neutral_bought = (RSI_MIDDLE) <= rsi <= (RSI_OVERBOUGHT)
+        rsi_neutral_sold = (RSI_OVERSOLD) <= rsi <= (RSI_MIDDLE - (1))
         rsi_neutral = RSI_OVERSOLD <= rsi <= RSI_OVERBOUGHT
         
         # 현재 포지션이 없는 경우

@@ -231,7 +231,8 @@ class ReversalBacktester:
             
             # 시장 시간 체크
             market_status = self._get_market_status(current_time)
-            is_tradable = market_status in ["PREMARKET", "REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
+            #s_tradable = market_status in ["PREMARKET", "REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
+            is_tradable = market_status in ["REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
             
             # 디버깅용 출력 (초반)
             if i < 60:
@@ -262,7 +263,7 @@ class ReversalBacktester:
                         idx = self.trading_day_index.get(entry_date)
 
                         if idx is not None:
-                            max_hold_days_long = 2
+                            max_hold_days_long = 3
                             close_idx = idx + max_hold_days_long
                             if close_idx < len(self.trading_days):
                                 self.forced_close_date = self.trading_days[close_idx]

@@ -35,9 +35,9 @@ def optimize_parameters(
     
     # 테스트할 파라미터 범위 정의
     param_grid = {
-        "1x_stop_loss": [-0.03, -0.05, -0.08, -0.10, -0.12],
-        "2x_stop_loss": [-0.05, -0.08, -0.10, -0.15, -0.20],
-        "take_profit": [0.10, 0.20, 0.25, 0.30, 0.40, 0.50],
+        "1x_stop_loss": [-0.03, -0.05, -0.08, -0.10],
+        "2x_stop_loss": [-0.05, -0.08, -0.10, -0.15],
+        "take_profit": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35],
     }
     
     # 테스트할 심볼 선택 (전체는 시간이 오래 걸리므로 샘플링)
@@ -165,7 +165,7 @@ def optimize_parameters(
     print("\n" + "="*100)
     print("TOP 10 PARAMETER COMBINATIONS")
     print("="*100)
-    print(df_results.head(10).to_string(index=False))
+    print(df_results.head(30).to_string(index=False))
     
     # 최적 파라미터 출력
     best = df_results.iloc[0]
