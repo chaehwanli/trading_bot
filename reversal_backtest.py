@@ -353,19 +353,19 @@ class ReversalBacktester:
                             "FORCE_CLOSE_TRADING_DAY_LIMIT"
                         )
                         # === FORCE_CLOSE 손실 시 쿨다운 1 거래일 ===
-                        if is_loss:
-                            force_close_date = current_time.date()
-                            idx = self.trading_day_index.get(force_close_date)
+                        #if is_loss:
+                        #    force_close_date = current_time.date()
+                        #    idx = self.trading_day_index.get(force_close_date)
 
-                            if idx is not None:
-                                cooldown_days = 1
-                                cooldown_idx = idx + cooldown_days
-                                if cooldown_idx < len(self.trading_days):
-                                    self.cooldown_until_date = self.trading_days[cooldown_idx]
-                                else:
-                                    self.cooldown_until_date = self.trading_days[-1]
+                        #    if idx is not None:
+                        #        cooldown_days = 1
+                        #        cooldown_idx = idx + cooldown_days
+                        #        if cooldown_idx < len(self.trading_days):
+                        #            self.cooldown_until_date = self.trading_days[cooldown_idx]
+                        #        else:
+                        #            self.cooldown_until_date = self.trading_days[-1]
 
-                            print(f"⚠️ FORCE_CLOSE 손실 → 쿨다운 1일 적용 ({self.cooldown_until_date})")
+                        #    print(f"⚠️ FORCE_CLOSE 손실 → 쿨다운 1일 적용 ({self.cooldown_until_date})")
 
             # 자본 추적
             if self.strategy.current_position and self.strategy.entry_price:
