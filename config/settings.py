@@ -36,8 +36,22 @@ TARGET_SYMBOLS = [
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
         "LONG_MULTIPLE": "2",
-        "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
-        "SHORT_MULTIPLE": "-2"
+        "SHORT": "TSLS",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
+    },
+    {
+        "ORIGINAL": "AMZN",# 원본 주식: Amazon
+        "LONG": "AMZU",  # 2x 롱 ETF: Direxion Daily AMZN Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "AMZD",     # 1x 숏 ETF: Direxion Daily AMZN Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
+    },
+    {
+        "ORIGINAL": "AMD",# 원본 주식: AMD
+        "LONG": "AMUU",  # 2x 롱 ETF: Direxion Daily AMD Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "AMDD",     # 1x 숏 ETF: Direxion Daily AMD Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"
     }
 ]
 
