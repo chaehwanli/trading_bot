@@ -44,6 +44,8 @@ class ReversalBacktester:
 
         # 강제청산 날짜
         self.forced_close_date = None
+        # STOP_LOSS 쿨다운 종료일
+        self.cooldown_until_date = None
 
     def build_trading_calendar(self, start_dt, end_dt, market: str):
         """
@@ -231,7 +233,7 @@ class ReversalBacktester:
             
             # 시장 시간 체크
             market_status = self._get_market_status(current_time)
-            #s_tradable = market_status in ["PREMARKET", "REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
+            #is_tradable = market_status in ["PREMARKET", "REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
             is_tradable = market_status in ["REGULAR"] # 주간거래는 제외(데이터가 보통 미국장 기준일 것임. KIS API 로직 따름)
             
             # 디버깅용 출력 (초반)
@@ -242,7 +244,15 @@ class ReversalBacktester:
             confidence = signal_data['confidence']
             
             # 포지션이 없는 경우 진입 (거래 가능 시간에만)
-            if not self.strategy.current_position and is_tradable:
+            #if not self.strategy.current_position and is_tradable:
+            if (
+                not self.strategy.current_position
+                and is_tradable
+                and (
+                    self.cooldown_until_date is None
+                    or current_time.date() >= self.cooldown_until_date
+                )
+            ):
                 if signal == SignalType.BUY and confidence > 0.5:
                     quantity = self.strategy.calculate_position_size(etf_long_price, is_reversal=False)
                     if quantity > 0:
@@ -290,7 +300,7 @@ class ReversalBacktester:
                         idx = self.trading_day_index.get(entry_date)
 
                         if idx is not None:
-                            max_hold_days_short = 2
+                            max_hold_days_short = 1
                             close_idx = idx + max_hold_days_short
                             if close_idx < len(self.trading_days):
                                 self.forced_close_date = self.trading_days[close_idx]
@@ -306,13 +316,31 @@ class ReversalBacktester:
                 
                 if exit_reason:
                     # 손절/익절인 경우 무조건 청산 (전환 안함)
+                    #if exit_reason == "STOP_LOSS":
+                    #    self._close_position(current_time, current_etf_price, exit_reason)
                     if exit_reason == "STOP_LOSS":
                         self._close_position(current_time, current_etf_price, exit_reason)
+
+                        # === STOP_LOSS 쿨다운 설정 (4 거래일) ===
+                        stop_date = current_time.date()
+                        idx = self.trading_day_index.get(stop_date)
+
+                        if idx is not None:
+                            cooldown_days = 5
+                            cooldown_idx = idx + cooldown_days
+                            if cooldown_idx < len(self.trading_days):
+                                self.cooldown_until_date = self.trading_days[cooldown_idx]
+                            else:
+                                self.cooldown_until_date = self.trading_days[-1]
+
+                        print(f"⛔ STOP_LOSS 쿨다운 시작 → {self.cooldown_until_date}")
                     elif exit_reason == "TAKE_PROFIT":
                         # 익절인 경우 청산
                         self._close_position(current_time, current_etf_price, exit_reason)
+                        self.cooldown_until_date = None
                     else:
                         # 기타 사유 청산
+                        print(f"기타 사유 청산 → {exit_reason}")
                         self._close_position(current_time, current_etf_price, exit_reason)
 
                 # === 거래일 기준 강제청산 ===

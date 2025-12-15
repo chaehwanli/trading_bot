@@ -161,9 +161,9 @@ def optimize_parameters(
     df_results.to_csv(output_file, index=False)
     logger.info(f"\nResults saved to {output_file}")
     
-    # 상위 10개 결과 출력
+    # 상위 30개 결과 출력
     print("\n" + "="*100)
-    print("TOP 10 PARAMETER COMBINATIONS")
+    print("TOP 30 PARAMETER COMBINATIONS")
     print("="*100)
     print(df_results.head(30).to_string(index=False))
     
