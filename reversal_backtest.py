@@ -326,7 +326,7 @@ class ReversalBacktester:
                         idx = self.trading_day_index.get(stop_date)
 
                         if idx is not None:
-                            cooldown_days = 5
+                            cooldown_days = 4
                             cooldown_idx = idx + cooldown_days
                             if cooldown_idx < len(self.trading_days):
                                 self.cooldown_until_date = self.trading_days[cooldown_idx]
@@ -337,7 +337,6 @@ class ReversalBacktester:
                     elif exit_reason == "TAKE_PROFIT":
                         # 익절인 경우 청산
                         self._close_position(current_time, current_etf_price, exit_reason)
-                        self.cooldown_until_date = None
                     else:
                         # 기타 사유 청산
                         print(f"기타 사유 청산 → {exit_reason}")
@@ -345,12 +344,28 @@ class ReversalBacktester:
 
                 # === 거래일 기준 강제청산 ===
                 if self.strategy.current_position and self.forced_close_date:
+                    # 손익 판단 (강제청산 직전 기준)
+                    is_loss = current_etf_price < self.strategy.entry_price
                     if current_time.date() >= self.forced_close_date:
                         self._close_position(
                             current_time,
                             current_etf_price,
                             "FORCE_CLOSE_TRADING_DAY_LIMIT"
                         )
+                        # === FORCE_CLOSE 손실 시 쿨다운 1 거래일 ===
+                        if is_loss:
+                            force_close_date = current_time.date()
+                            idx = self.trading_day_index.get(force_close_date)
+
+                            if idx is not None:
+                                cooldown_days = 1
+                                cooldown_idx = idx + cooldown_days
+                                if cooldown_idx < len(self.trading_days):
+                                    self.cooldown_until_date = self.trading_days[cooldown_idx]
+                                else:
+                                    self.cooldown_until_date = self.trading_days[-1]
+
+                            print(f"⚠️ FORCE_CLOSE 손실 → 쿨다운 1일 적용 ({self.cooldown_until_date})")
 
             # 자본 추적
             if self.strategy.current_position and self.strategy.entry_price:
