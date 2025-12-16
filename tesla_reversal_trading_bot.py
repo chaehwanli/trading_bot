@@ -7,6 +7,7 @@ from datetime import datetime
 import sys
 import os
 import pytz
+import schedule
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -44,8 +45,8 @@ class TeslaReversalTradingBot:
             "ORIGINAL": "TSLA",  # 원본 주식: Tesla
             "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
             "LONG_MULTIPLE": "2",
-            "SHORT": "TSLZ",      # 2x 숏 ETF: T-Rex 2x Inverse Tesla Daily Target ETF
-            "SHORT_MULTIPLE": "-2"
+            "SHORT": "TSLS",      # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+            "SHORT_MULTIPLE": "-1"
         }
         
         self.original_symbol = self.target_config["ORIGINAL"]
@@ -438,11 +439,11 @@ class TeslaReversalTradingBot:
         # 기존 Scheduler 구조가 Daily Task 등록 방식이라면, execute_trading_strategy 주기를 확인해야 함.
         # 여기서는 기존 구조를 유지하되 force_close만 제거.
         # 스케줄러 설정
-        # 1. 포지션 모니터링: 1분마다 (기존)
-        self.scheduler.schedule.every(1).hours.do(self.monitor_position)
+        # 1. 포지션 모니터링: 1시간마다 (요청사항 반영)
+        schedule.every(1).hours.do(self.monitor_position)
         
         # 2. 거래 전략 실행: 1시간마다 (요청사항 반영)
-        self.scheduler.schedule.every(1).hours.do(self.execute_trading_strategy)
+        schedule.every(1).hours.do(self.execute_trading_strategy)
         
         # 3. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
         
@@ -453,7 +454,7 @@ class TeslaReversalTradingBot:
         # 메인 루프
         try:
             while self.is_running:
-                self.scheduler.run_pending() # run() 대신 run_pending() 사용
+                schedule.run_pending() # schedule 모듈 직접 사용
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("봇 종료 요청")
