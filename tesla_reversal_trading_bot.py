@@ -354,7 +354,8 @@ class TeslaReversalTradingBot:
         market_status = self._get_market_status()
         
         # 요청사항 2: 정규장 시간 부터 시작
-        if market_status in ["REGULAR"]:
+        # TEST MODE: 장 종료 후에도 테스트를 위해 AFTERMARKET/CLOSED 허용
+        if market_status in ["REGULAR", "AFTERMARKET", "CLOSED", "PREMARKET"]:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
             
             # 이미 포지션이 있으면 스킵
@@ -428,8 +429,10 @@ class TeslaReversalTradingBot:
                 rsi = signal_data.get("rsi")
                 macd = signal_data.get("macd")
                 
+                logger.info(f"텔레그램 알림 전송 시도: Signal={signal}, Action={action_result}")
+                
                 # 전략 실행 결과 텔레그램 전송
-                self.notifier.send_strategy_update(
+                res = self.notifier.send_strategy_update(
                     symbol=self.original_symbol,
                     market_status=market_status,
                     signal=str(signal).split(".")[-1], # SignalType.BUY -> BUY
@@ -439,6 +442,11 @@ class TeslaReversalTradingBot:
                     rsi=rsi,
                     macd=macd
                 )
+                
+                if res:
+                    logger.info("텔레그램 알림 전송 성공")
+                else:
+                    logger.warning("텔레그램 알림 전송 실패 (send_strategy_update returned False)")
                                 
             except Exception as e:
                 logger.error(f"거래 전략 실행 실패: {e}")
