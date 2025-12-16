@@ -10,22 +10,24 @@ import pytz
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config.settings import REVERSAL_STRATEGY_PARAMS
+from config.settings import REVERSAL_STRATEGY_PARAMS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from data.data_fetcher import DataFetcher
 from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
 from utils.logger import logger
+from utils.telegram_notifier import TelegramNotifier
 from utils.scheduler import TradingScheduler
 from trading.kis_api import KisApi
 
 class TeslaReversalTradingBot:
     """Tesla 전환 매매 전략 거래 봇 (KIS 연동)"""
     
-    def __init__(self, params: dict = None):
+    def __init__(self, params: dict = None, is_paper_trading: bool = True):
         """
         전환 매매 봇 초기화
+        :param is_paper_trading: 모의투자 여부 (기본값 True로 변경하여 안전한 테스트 권장)
         """
-        self.kis = KisApi(is_paper_trading=False) # 실전 투자 모드 (설정 확인 필요)
+        self.kis = KisApi(is_paper_trading=is_paper_trading)
         # 만약 모의투자로 하려면 is_paper_trading=True 로 변경하거나 env 변수 활용
         # settings.py 에서 BASE_URL 로 관리하므로 KisApi 내부에서 처리됨. 
         # 여기서는 기본값 사용
@@ -33,6 +35,7 @@ class TeslaReversalTradingBot:
         self.data_fetcher = DataFetcher() # 과거 데이터/지표용
         self.strategy = ReversalStrategy(params=params)
         self.scheduler = TradingScheduler()
+        self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID)
         self.timezone = pytz.timezone("Asia/Seoul")
         self.is_running = False
         
@@ -51,6 +54,11 @@ class TeslaReversalTradingBot:
         self.etf_short = self.target_config["SHORT"]
         self.etf_short_multiple = self.target_config["SHORT_MULTIPLE"]
         
+        # 쿨다운 상태 (날짜 기준)
+        self.cooldown_until_date = None
+        # 강제청산 날짜 (거래일 기준)
+        self.forced_close_date = None
+        
         logger.info(f"Tesla 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
         
     def _is_dst(self):
@@ -58,6 +66,20 @@ class TeslaReversalTradingBot:
         eastern = pytz.timezone('US/Eastern')
         now_eastern = datetime.now(eastern)
         return bool(now_eastern.dst())
+
+    def _calculate_trading_day_limit(self, start_date, days):
+        """
+        거래일 기준 날짜 계산 (단순화: 주말 제외)
+        실제 휴장은 고려하지 않으나, 대략적인 거래일 계산
+        """
+        current_date = start_date
+        added_days = 0
+        while added_days < days:
+             current_date += __import__("datetime").timedelta(days=1)
+             # 토(5), 일(6) 제외 (0=월)
+             if current_date.weekday() < 5:
+                 added_days += 1
+        return current_date
 
     def _get_market_status(self):
         """현재 시간 기준 장 상태 반환 (한국 시간 기준)"""
@@ -100,8 +122,9 @@ class TeslaReversalTradingBot:
         if price:
             return price
         
-        logger.warning(f"KIS API 가격 조회 실패, yfinance 시도: {symbol}")
-        return self.data_fetcher.get_realtime_price(symbol)
+        raise Exception(f"KIS API 가격 조회 실패: {symbol}")
+        # logger.warning(f"KIS API 가격 조회 실패, yfinance 시도: {symbol}")
+        # return self.data_fetcher.get_realtime_price(symbol)
 
     def monitor_position(self):
         """포지션 모니터링 및 전환 조건 확인"""
@@ -123,24 +146,33 @@ class TeslaReversalTradingBot:
             if exit_reason:
                 logger.info(f"{self.strategy.current_etf_symbol} {exit_reason} 조건 충족")
                 
-                # 손절/익절 모두 일반 청산 (전환 매매 비활성화)
-                # 요청사항 5: 손실로 청산한 후에 반대 포지션으로 전환하지 않는다.
                 self._close_position(current_price, exit_reason)
-            
-            # 최대 보유 기간 확인 (요청사항 4)
-            # LONG: 48시간, SHORT: 24시간
-            if self.strategy.entry_time:
-                elapsed = datetime.now() - self.strategy.entry_time
-                elapsed_hours = elapsed.total_seconds() / 3600
                 
-                should_close = False
-                if self.strategy.current_position == "LONG" and elapsed_hours >= 48:
-                    should_close = True
-                elif self.strategy.current_position == "SHORT" and elapsed_hours >= 24:
-                    should_close = True
+                # === STOP_LOSS 쿨다운 설정 (4일) ===
+                if exit_reason == "STOP_LOSS":
+                   from datetime import timedelta
+                   now = datetime.now(self.timezone)
+                   self.cooldown_until_date = (now + timedelta(days=4)).date()
+                   logger.info(f"⛔ STOP_LOSS 쿨다운 시작 -> {self.cooldown_until_date} 까지 거래 중단")
+            
+            # 최대 보유 기간 확인 (요청사항 4: 시간 -> 거래일 수 기준)
+            # LOGIC SYNC: reversal_backtest.py uses trading days.
+            # LONG: 3 trading days, SHORT: 1 trading day
+            # If forced_close_date is set, compare with current date.
+            
+            if self.forced_close_date:
+                today = datetime.now(self.timezone).date()
+                if today >= self.forced_close_date:
+                    self._close_position(current_price, "FORCE_CLOSE_TRADING_DAY_LIMIT")
                     
-                if should_close:
-                    self._close_position(current_price, "FORCE_CLOSE_TIME_LIMIT")
+                    # === FORCE_CLOSE 후 처리 ===
+                    # 1. 이익이면 연속 손절 카운트 리셋 (기존 로직)
+                    if self.strategy.trade_history:
+                        last_trade = self.strategy.trade_history[-1]
+                        if last_trade['pnl'] > 0:
+                            self.strategy.consecutive_stop_losses = 0
+                            self.strategy.stop_loss_cooldown_until = None
+                            logger.info("✅ FORCE_CLOSE 이익 실현으로 연속 손절 카운트 초기화")
             
             # 최대 자본 손실률 확인
             if self.strategy.check_max_drawdown():
@@ -149,6 +181,7 @@ class TeslaReversalTradingBot:
                 
         except Exception as e:
             logger.error(f"포지션 모니터링 실패: {e}")
+            self.notifier.send_error_alert(f"포지션 모니터링 중 오류 발생: {e}")
     
     def _execute_reversal(self, reason: str = "손절 전환"):
         """전환 매매 실행"""
@@ -156,7 +189,7 @@ class TeslaReversalTradingBot:
             # 원본 주식 데이터 수집 (지표 계산용, yfinance 사용)
             original_data = self.data_fetcher.get_intraday_data(
                 self.original_symbol, 
-                interval="5m"
+                interval="1h"
             )
             
             if original_data is None or len(original_data) < 50:
@@ -185,7 +218,7 @@ class TeslaReversalTradingBot:
                 # 매도 주문
                 logger.info(f"[KIS] 청산 주문 실행: {close_symbol} {close_qty}주")
                 # 시장가 매도 가정 (또는 현재가 지정가)
-                # self.kis.place_order(close_symbol, "SELL", close_qty, etf_long_price if ... else ...)
+                self.kis.place_order(close_symbol, "SELL", close_qty, etf_long_price if ... else ...)
                 # 여기서 close_qty가 0이 아니라고 가정.
                 # *실제 구현*: 현재가가 아닌 '시장가'로 던지는게 확실함. KIS API place_order에서 0원 입력시 시장가 로직 필요.
                 # kis_api.py에서 price=0이면 시장가(01)로 하도록 수정했는지 확인.
@@ -220,14 +253,37 @@ class TeslaReversalTradingBot:
                 res = self.kis.place_order(new_symbol, "BUY", new_qty, price=0, order_type="01") # 시장가
                 if not res:
                     logger.error("진입 주문 실패")
+                    self.notifier.send_error_alert(f"진입 주문 실패: {new_symbol}")
                     # 롤백 로직 필요할 수 있으나 복잡하므로 로그만 남김
+                else:
+                    # 진입 알림 전송
+                    # TODO: 실제 1주당 가격정보 확인 필요. 여기서는 시장가 주문이라 가격을 0으로 보냈음.
+                    # 알림에는 '시장가' 또는 추정가 표시가 좋음.
+                    # etf_long_price / etf_short_price 사용
+                    buy_price = etf_long_price if result['to_etf'] == self.etf_long else etf_short_price
+                    self.notifier.send_order_alert(
+                        symbol=new_symbol,
+                        side="BUY", 
+                        price=buy_price, 
+                        quantity=new_qty,
+                        reason=reason
+                    )
                     
                 logger.info(f"✅ 전환 매매 성공: {result['from_etf']} -> {result['to_etf']}")
+                
+                # === 강제 청산 날짜 설정 ===
+                # LONG: 3 trading days, SHORT: 1 trading day
+                target_days = 3 if result['to_etf'] == self.etf_long else 1
+                entry_date = datetime.now(self.timezone).date()
+                self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
+                logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
+                
             else:
                 logger.info("전환 매매 조건 미충족 (Strategy 내부 로직)")
                 
         except Exception as e:
             logger.error(f"전환 매매 실행 실패: {e}")
+            self.notifier.send_error_alert(f"전환 매매 실행 중 오류 발생: {e}")
     
     def _close_position(self, current_price: float, reason: str):
         """포지션 청산 (전환 없이)"""
@@ -242,7 +298,17 @@ class TeslaReversalTradingBot:
         res = self.kis.place_order(symbol, "SELL", qty, price=0, order_type="01") # 시장가
         if not res:
             logger.error("청산 주문 실패")
+            self.notifier.send_error_alert(f"청산 주문 실패: {symbol}")
             return
+        
+        # 청산 알림 전송
+        self.notifier.send_order_alert(
+            symbol=symbol, 
+            side="SELL", 
+            price=current_price, 
+            quantity=qty, 
+            reason=reason
+        )
 
         # 전략 상태 업데이트 (기존 로직 복붙 + 수정)
         # self.strategy 클래스에는 _close_position 같은 퍼블릭 메서드가 없음.
@@ -277,18 +343,17 @@ class TeslaReversalTradingBot:
         )
         
         # 포지션 초기화
-        self.strategy.current_position = None
-        self.strategy.current_etf_symbol = None
         self.strategy.entry_price = None
         self.strategy.entry_time = None
         self.strategy.entry_quantity = None
+        self.forced_close_date = None
     
     def execute_trading_strategy(self):
-        """거래 전략 실행 (프리마켓 ~ 정규장)"""
+        """거래 전략 실행 (정규장)"""
         market_status = self._get_market_status()
         
-        # 요청사항 2: 프리마켓 시간 부터 시작
-        if market_status in ["PREMARKET", "REGULAR"]:
+        # 요청사항 2: 정규장 시간 부터 시작
+        if market_status in ["REGULAR"]:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
             
             # 이미 포지션이 있으면 스킵
@@ -361,10 +426,7 @@ class TeslaReversalTradingBot:
         # 포지션 모니터링 (항상 실행)
         self.monitor_position()
     
-    
-    # 요청사항 3: 새벽 05:00 강제 청산 삭제됨
-    # def force_close_all_positions(self): ...
-    
+  
     def run(self):
         """봇 실행"""
         logger.info(f"Tesla 전환 매매 봇 시작 (Target: {self.original_symbol})")
@@ -375,17 +437,23 @@ class TeslaReversalTradingBot:
         # 기본적으로 1분/5분 단위 등으로 execute_trading_strategy 및 monitor_position을 호출해야 함.
         # 기존 Scheduler 구조가 Daily Task 등록 방식이라면, execute_trading_strategy 주기를 확인해야 함.
         # 여기서는 기존 구조를 유지하되 force_close만 제거.
+        # 스케줄러 설정
+        # 1. 포지션 모니터링: 1분마다 (기존)
+        self.scheduler.schedule.every(1).hours.do(self.monitor_position)
         
-        self.scheduler.schedule_daily_tasks(
-            self.execute_trading_strategy,
-            self.monitor_position,
-            None # force_close 제거
-        )
+        # 2. 거래 전략 실행: 1시간마다 (요청사항 반영)
+        self.scheduler.schedule.every(1).hours.do(self.execute_trading_strategy)
+        
+        # 3. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
+        
+        # 초기 1회 실행 (테스트용)
+        logger.info("봇 시작 시 초기 1회 전략 실행...")
+        self.execute_trading_strategy()
         
         # 메인 루프
         try:
             while self.is_running:
-                self.scheduler.run()
+                self.scheduler.run_pending() # run() 대신 run_pending() 사용
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("봇 종료 요청")

@@ -15,6 +15,10 @@ KIS_ACCOUNT_NO = os.getenv("KIS_ACCOUNT_NO", "")  # 계좌번호 (8자리)
 KIS_BASE_URL = os.getenv("KIS_BASE_URL", "") # 실전투자
 # KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443" # 모의투자
 
+# ========== Telegram 설정 ==========
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
 # ========== 거래소 API 설정 ==========
 # 예시: Alpaca, Interactive Brokers 등
 API_KEY = os.getenv("API_KEY", "")
