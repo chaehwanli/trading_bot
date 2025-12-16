@@ -57,3 +57,38 @@ class TelegramNotifier:
             f"• 시간: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         return self.send_message(message)
+
+    def send_strategy_update(self, 
+                             symbol: str, 
+                             market_status: str, 
+                             signal: str, 
+                             confidence: float, 
+                             current_position: Optional[str], 
+                             action: str,
+                             rsi: Optional[float] = None,
+                             macd: Optional[dict] = None):
+        """전략 실행 결과 알림"""
+        
+        # 신호에 따른 이모지
+        signal_emoji = "⚪"
+        if "BUY" in str(signal).upper(): signal_emoji = "🟢"
+        elif "SELL" in str(signal).upper(): signal_emoji = "🔴"
+        
+        # 지표 정보 포맷팅
+        indicators_info = ""
+        if rsi is not None:
+             indicators_info += f"• RSI: {rsi:.2f}\n"
+        if macd is not None:
+             # MACD, Signal, Hist
+             indicators_info += f"• MACD: {macd.get('macd',0):.2f} / Sig: {macd.get('signal',0):.2f}"
+        
+        message = (
+            f"📊 <b>[전략 실행 결과] {symbol}</b>\n\n"
+            f"• 장 상태: {market_status}\n"
+            f"• 현재 포지션: {current_position if current_position else '없음'}\n"
+            f"• 신호: {signal_emoji} {signal} (확률: {confidence:.2f})\n"
+            f"{indicators_info}\n"
+            f"• 결정: {action}\n"
+            f"• 시간: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        return self.send_message(message)

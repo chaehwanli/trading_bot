@@ -418,8 +418,30 @@ class TeslaReversalTradingBot:
                                     f"{position_side} 포지션 진입: {target_etf} @ ${etf_price:.2f} x {quantity:.2f} "
                                     f"(신뢰도: {confidence:.2f})"
                                 )
+                                action_result = f"진입 성공 ({target_etf})"
                             else:
                                 logger.error("진입 주문 실패")
+                                action_result = "진입 주문 실패"
+                else:
+                     action_result = "신호 없음 / 관망"
+                     
+                rsi = signal_data.get("rsi")
+                macd = signal_data.get("macd")
+                
+                # 전략 실행 결과 텔레그램 전송
+                self.notifier.send_strategy_update(
+                    symbol=self.original_symbol,
+                    market_status=market_status,
+                    signal=str(signal).split(".")[-1], # SignalType.BUY -> BUY
+                    confidence=confidence if confidence else 0.0,
+                    current_position=self.strategy.current_position,
+                    action=action_result,
+                    rsi=rsi,
+                    macd=macd
+                )
+                                
+            except Exception as e:
+                logger.error(f"거래 전략 실행 실패: {e}")
                                 
             except Exception as e:
                 logger.error(f"거래 전략 실행 실패: {e}")
