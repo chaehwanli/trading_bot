@@ -464,16 +464,15 @@ class TeslaReversalTradingBot:
         self.is_running = True
         
         # 스케줄러 설정
-        # 스케줄러 설정
         # 기본적으로 1분/5분 단위 등으로 execute_trading_strategy 및 monitor_position을 호출해야 함.
         # 기존 Scheduler 구조가 Daily Task 등록 방식이라면, execute_trading_strategy 주기를 확인해야 함.
         # 여기서는 기존 구조를 유지하되 force_close만 제거.
-        # 스케줄러 설정
-        # 1. 포지션 모니터링: 1시간마다 (요청사항 반영)
-        schedule.every(1).hours.do(self.monitor_position)
         
-        # 2. 거래 전략 실행: 1시간마다 (요청사항 반영)
-        schedule.every(1).hours.do(self.execute_trading_strategy)
+        # 1. 포지션 모니터링: 매 시간 1분에 실행 (정각 1분)
+        schedule.every().hour.at(":01").do(self.monitor_position)
+        
+        # 2. 거래 전략 실행: 매 시간 1분에 실행 (정각 1분)
+        schedule.every().hour.at(":01").do(self.execute_trading_strategy)
         
         # 3. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
         
