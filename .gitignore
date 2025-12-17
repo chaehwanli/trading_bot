@@ -62,5 +62,5 @@ htmlcov/
 
 # API 토큰
 kis_token_real.json
-kis_token_mock.json
+kis_token_paper.json
 alpaca_token_real.json
