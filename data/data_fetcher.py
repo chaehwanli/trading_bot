@@ -15,17 +15,15 @@ from trading.kis_api import KisApi
 class DataFetcher:
     """시장 데이터 수집 클래스 (KIS API)"""
     
-    def __init__(self):
-        # 실전/모의 여부는 config 등에서 가져와야 하나 일단 모의투자로 안전하게 기본 설정하거나
-        # 봇이 초기화될 때 주입받는 구조가 좋음. 여기선 기본값을 설정.
-        # 주의: kis_api.py 내부에서 KIS_ACCOUNT_NO 등을 쓰므로 
-        # is_paper_trading 플래그만 중요.
-        # 봇 실행 시점에서 결정된 모드를 따라야 하나, DataFetcher 독립적 사용 시 모호함.
-        # 유저 환경에 맞춰 True(모의) or False(실전) 설정 필요.
-        # 여기서는 안전하게 True로 하거나, Settings에서 가져오는 것이 좋음.
-        # 일단 False(실전)으로 하되, 실제 트레이딩 봇이 사용하는 인스턴스와 일치해야 함.
-        # 하지만 DataFetcher는 보통 '정보 조회'용.
-        self.kis = KisApi(is_paper_trading=False) # 실전 기준? (유저 요청: KIS API로 거래/조회)
+    def __init__(self, kis_client: Optional[KisApi] = None):
+        """
+        :param kis_client: 외부에서 주입된 KisApi 인스턴스 (없으면 내부 생성)
+        """
+        if kis_client:
+            self.kis = kis_client
+        else:
+            # 기본값: 실전 투자 (주의: 모의투자 시 외부 주입 권장)
+            self.kis = KisApi(is_paper_trading=False)
     
     def get_realtime_price(self, symbol: str) -> Optional[float]:
         """실시간 가격 조회"""
@@ -71,9 +69,20 @@ class DataFetcher:
                         
             else:
                 # 분봉 (1h -> 60분)
-                # get_minute_price는 최근 120개(2시간? 120시간?) 등 제한적임.
-                # "1h" -> 60분봉
-                raw_data = self.kis.get_minute_price(symbol)
+                # Interval Parsing
+                interval_min = 60 # 기본값
+                if interval.endswith("m"):
+                    try:
+                        interval_min = int(interval[:-1])
+                    except:
+                        interval_min = 60
+                elif interval.endswith("h"):
+                    try:
+                        interval_min = int(interval[:-1]) * 60
+                    except:
+                        interval_min = 60
+                
+                raw_data = self.kis.get_minute_price(symbol, interval_min=interval_min)
                 if raw_data:
                     # KIS 분봉 데이터 필드: kymd(일자), khms(시간), open, high, low, last, evol
                     for item in raw_data:

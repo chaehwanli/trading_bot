@@ -28,18 +28,6 @@ class TeslaReversalTradingBot:
         전환 매매 봇 초기화
         :param is_paper_trading: 모의투자 여부 (기본값 True로 변경하여 안전한 테스트 권장)
         """
-        self.kis = KisApi(is_paper_trading=is_paper_trading)
-        # 만약 모의투자로 하려면 is_paper_trading=True 로 변경하거나 env 변수 활용
-        # settings.py 에서 BASE_URL 로 관리하므로 KisApi 내부에서 처리됨. 
-        # 여기서는 기본값 사용
-        
-        self.data_fetcher = DataFetcher() # 과거 데이터/지표용
-        self.strategy = ReversalStrategy(params=params)
-        self.scheduler = TradingScheduler()
-        self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID)
-        self.timezone = pytz.timezone("Asia/Seoul")
-        self.is_running = False
-        
         # === 사용자 요청 종목 설정 ===
         self.target_config = {
             "ORIGINAL": "TSLA",  # 원본 주식: Tesla
@@ -54,6 +42,22 @@ class TeslaReversalTradingBot:
         self.etf_long_multiple = self.target_config["LONG_MULTIPLE"]
         self.etf_short = self.target_config["SHORT"]
         self.etf_short_multiple = self.target_config["SHORT_MULTIPLE"]
+
+        self.kis = KisApi(is_paper_trading=is_paper_trading)
+        # 만약 모의투자로 하려면 is_paper_trading=True 로 변경하거나 env 변수 활용
+        # settings.py 에서 BASE_URL 로 관리하므로 KisApi 내부에서 처리됨. 
+        # 여기서는 기본값 사용
+        
+        # DataFetcher 초기화 (KIS 인스턴스 공유)
+        self.data_fetcher = DataFetcher(kis_client=self.kis)
+        
+        # 전략 초기화
+        # ReversalStrategy는 params만 받음 (__init__ 확인완료)
+        self.strategy = ReversalStrategy(params=params)
+        self.scheduler = TradingScheduler()
+        self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID)
+        self.timezone = pytz.timezone("Asia/Seoul")
+        self.is_running = False
         
         # 쿨다운 상태 (날짜 기준)
         self.cooldown_until_date = None
@@ -365,13 +369,15 @@ class TeslaReversalTradingBot:
             
             try:
                 # 원본 주식 데이터 수집 (지표용)
+                # 1시간 간격 실행이므로 1시간봉 사용 (기존 5m -> 1h 명시적 변경)
                 original_data = self.data_fetcher.get_intraday_data(
                     self.original_symbol,
-                    interval="5m"
+                    interval="1h"
                 )
                 
                 if original_data is None or len(original_data) < 50:
-                    logger.warning(f"{self.original_symbol} 데이터 부족")
+                    logger.warning(f"{self.original_symbol} 데이터 부족 또는 조회 실패")
+                    self.notifier.send_error_alert(f"데이터 조회 실패: {self.original_symbol}\n(토큰 만료 또는 서버 오류 가능성)")
                     return
                 
                 # 신호 생성

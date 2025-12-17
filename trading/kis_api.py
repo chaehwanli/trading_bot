@@ -208,10 +208,11 @@ class KisApi:
             logger.error(f"API 호출 오류 (get_daily_price): {e}")
             return None
 
-    def get_minute_price(self, symbol: str):
+    def get_minute_price(self, symbol: str, interval_min: int = 60):
         """
         해외주식 분봉 조회 (당일/과거 포함)
         TR_ID: HHDFS76950200 (해외주식 분봉조회)
+        :param interval_min: 분봉 주기 (1, 3, 5, 10, 15, 30, 60 등)
         """
         path = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
         url = f"{self.base_url}{path}"
@@ -223,7 +224,7 @@ class KisApi:
             "AUTH": "",
             "EXCD": exch_code,
             "SYMB": symbol,
-            "NMIN": "60", # 60분봉
+            "NMIN": str(interval_min), # 동적 주기 설정
             "PINC": "1", # 전일포함
             "NEXT": "",
             "NREC": "120", # 요청 개수
