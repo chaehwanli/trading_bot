@@ -298,16 +298,34 @@ class KisApi:
             "ORD_DVSN": order_type 
         }
         
-        try:
-            res = requests.post(url, headers=headers, data=json.dumps(body))
-            data = res.json()
-            
-            if data['rt_cd'] != '0':
-                logger.error(f"주문 실패 ({symbol} {side}): {data['msg1']}")
-                return None
+        # 재시도 로직 추가
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                # Rate Limit 등을 고려한 미세 지연 (기본)
+                if i > 0: time.sleep(1) 
                 
-            return data['output'] 
-            
-        except Exception as e:
-            logger.error(f"주문 중 예외 발생: {e}")
-            return None
+                res = requests.post(url, headers=headers, data=json.dumps(body))
+                data = res.json()
+                
+                # 초당 거래건수 초과 등 (rt_cd != 0)
+                if data['rt_cd'] != '0':
+                    msg = data['msg1']
+                    # 초당 거래건수 초과 메시지 확인 (정확한 메시지는 "초당 거래건수를 초과" 포함)
+                    if "초과" in msg and i < max_retries - 1:
+                        logger.warning(f"주문 실패 (Rate Limit), retrying {i+1}/{max_retries}... Msg: {msg}")
+                        time.sleep(0.5 * (i+1)) # 지연 시간 증가
+                        continue
+                        
+                    logger.error(f"주문 실패 ({symbol} {side}): {msg}")
+                    return None
+                    
+                return data['output'] 
+                
+            except Exception as e:
+                logger.error(f"주문 중 예외 발생: {e}")
+                if i < max_retries - 1:
+                     time.sleep(1)
+                     continue
+                return None
+        return None
