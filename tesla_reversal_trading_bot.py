@@ -375,7 +375,15 @@ class TeslaReversalTradingBot:
         
         # 요청사항 2: 정규장 시간 부터 시작
         # TEST MODE: 장 종료 후에도 테스트를 위해 AFTERMARKET/CLOSED 허용
-        if market_status in ["REGULAR", "AFTERMARKET", "CLOSED", "PREMARKET"]:
+        # DAYTIME(한국 주간)은 모의투자(테스트)에서만 허용
+        allowed_statuses = ["REGULAR"]
+        if self.kis.is_paper_trading:
+            allowed_statuses.append("DAYTIME")
+            allowed_statuses.append("AFTERMARKET")
+            allowed_statuses.append("CLOSED")
+            allowed_statuses.append("PREMARKET")
+            
+        if market_status in allowed_statuses:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
             
             # 이미 포지션이 있으면 스킵

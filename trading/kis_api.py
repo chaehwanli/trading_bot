@@ -278,7 +278,9 @@ class KisApi:
             "OVRS_EXCG_CD": "NAS", # 거래소 코드 (NAS/AMS 등, 대표값 사용)
             "TR_CRCY_CD": "USD",
             "CTX_AREA_FK100": "",
-            "CTX_AREA_NK100": ""
+            "CTX_AREA_NK100": "",
+            "CTX_AREA_FK200": "",
+            "CTX_AREA_NK200": ""
         }
         
         # 재시도 로직 추가
