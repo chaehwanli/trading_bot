@@ -279,6 +279,19 @@ class KisApi:
             tr_id = "VTTT1002U" if self.is_paper_trading else "JTTT1002U"
         elif side == "SELL":
             tr_id = "VTTT1006U" if self.is_paper_trading else "JTTT1006U"
+
+        # 모의투자는 지정가(00)만 가능
+        if self.is_paper_trading:
+            order_type = "00"
+            # 가격이 0(시장가 의도)인 경우 현재가 조회
+            if float(price) <= 0:
+                current_price = self.get_current_price(symbol)
+                if current_price:
+                    price = current_price
+                    logger.info(f"[Mock] 시장가 주문 -> 지정가 변환 {symbol} @ {price}")
+                else:
+                    logger.error(f"[Mock] 가격 조회 실패로 주문 중단: {symbol}")
+                    return None
             
         path = "/uapi/overseas-stock/v1/trading/order"
         url = f"{self.base_url}{path}"
