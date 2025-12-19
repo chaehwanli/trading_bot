@@ -19,6 +19,7 @@ from utils.logger import logger
 from utils.telegram_notifier import TelegramNotifier
 from utils.scheduler import TradingScheduler
 from trading.kis_api import KisApi
+from utils.state_manager import TradeStateManager
 
 class TeslaReversalTradingBot:
     """Tesla 전환 매매 전략 거래 봇 (KIS 연동)"""
@@ -50,6 +51,9 @@ class TeslaReversalTradingBot:
         
         # DataFetcher 초기화 (KIS 인스턴스 공유)
         self.data_fetcher = DataFetcher(kis_client=self.kis)
+        
+        # 상태 관리자 초기화
+        self.state_manager = TradeStateManager()
         
         # 전략 초기화
         # ReversalStrategy는 params만 받음 (__init__ 확인완료)
@@ -276,6 +280,15 @@ class TeslaReversalTradingBot:
                     
                 logger.info(f"✅ 전환 매매 성공: {result['from_etf']} -> {result['to_etf']}")
                 
+                # [State Persistence] 전환 진입 후 상태 저장
+                self.state_manager.save_state({
+                    "current_position": self.strategy.current_position,
+                    "current_etf_symbol": self.strategy.current_etf_symbol,
+                    "entry_price": self.strategy.entry_price,
+                    "entry_time": self.strategy.entry_time,
+                    "entry_quantity": self.strategy.entry_quantity
+                })
+                
                 # === 강제 청산 날짜 설정 ===
                 # LONG: 3 trading days, SHORT: 1 trading day
                 target_days = 3 if result['to_etf'] == self.etf_long else 1
@@ -352,6 +365,9 @@ class TeslaReversalTradingBot:
         self.strategy.entry_time = None
         self.strategy.entry_quantity = None
         self.forced_close_date = None
+        
+        # [State Persistence] 청산 후 상태 초기화
+        self.state_manager.clear_state()
     
     def execute_trading_strategy(self):
         """거래 전략 실행 (정규장)"""
@@ -421,6 +437,15 @@ class TeslaReversalTradingBot:
                                 self.strategy.entry_time = datetime.now()
                                 self.strategy.entry_quantity = quantity
                                 
+                                # [State Persistence] 진입 후 상태 저장
+                                self.state_manager.save_state({
+                                    "current_position": self.strategy.current_position,
+                                    "current_etf_symbol": self.strategy.current_etf_symbol,
+                                    "entry_price": self.strategy.entry_price,
+                                    "entry_time": self.strategy.entry_time,
+                                    "entry_quantity": self.strategy.entry_quantity
+                                })
+                                
                                 logger.info(
                                     f"{position_side} 포지션 진입: {target_etf} @ ${etf_price:.2f} x {quantity:.2f} "
                                     f"(신뢰도: {confidence:.2f})"
@@ -464,9 +489,118 @@ class TeslaReversalTradingBot:
         self.monitor_position()
     
   
+    def sync_internal_state_with_account(self):
+        """계좌 잔고를 조회하여 봇 내부 상태 동기화"""
+        logger.info("계좌 정보 동기화 중...")
+        balance_data = self.kis.get_overseas_stock_balance()
+        
+        if not balance_data:
+            logger.warning("계좌 정보 동기화 실패 (API 응답 없음)")
+            return
+            
+        holdings = balance_data.get('holdings', [])
+        assets = balance_data.get('assets', {})
+        
+        # 저장된 상태 로드 시도
+        saved_state = self.state_manager.load_state()
+        
+        # 1. 자본금 동기화 (예수금 + 평가금액?)
+        # 여기서는 Strategy의 capital을 보정하는 것이 맞는지 고민 필요. 
+        # Strategy는 '할당된 자본' 개념이므로 초기값 유지 + PnL 누적으로 갈지, 
+        # 아니면 현재 계좌의 실제 예수금으로 리셋할지.
+        # 일단은 포지션 복구에 집중.
+        
+        # 2. 보유 종목 확인 (TSLL / TSLS)
+        target_found = False
+        
+        for item in holdings:
+            # ovrs_pdno: 상품번호 (예: TSLL)
+            # ovrs_item_name: 상품명
+            # ord_psbl_qty: 주문가능수량 or cclt_qty: 체결수량 -> cclt_qty(체결수량) 확인 (ccld_qty_smtl1 등 키 확인 필요)
+            # 모의투자 문서: ord_psbl_qty (주문가능수량), cclt_qty (체결수량) 인데
+            # 실제 응답 키값: ovrs_pdno, ovrs_item_name, cclt_qty (보유수량) 등
+            
+            symbol = item.get('ovrs_pdno')
+            qty = float(item.get('ord_psbl_qty', 0)) # 혹은 cclt_qty
+            if qty <= 0:
+                # cclt_qty 등 다른 키 시도
+                qty = float(item.get('cclt_qty', 0))
+            
+            purch_avg_price = float(item.get('pchs_avg_pric', 0)) # 매입평균가격
+            
+            if symbol == self.etf_long:
+                self.strategy.current_position = "LONG"
+                self.strategy.current_etf_symbol = self.etf_long
+                self.strategy.entry_price = purch_avg_price
+                self.strategy.entry_quantity = qty
+                self.strategy.entry_time = datetime.now() # 기본값
+                
+                # [State Persistence] 저장된 상태가 있고, 보유 종목/수량이 일치하면 저장된 진입 시간 복원
+                if saved_state and saved_state.get('current_etf_symbol') == symbol:
+                    # 수량이 대략 일치하는지 확인 (분할 매매 등을 고려하지 않는다면 단순 비교)
+                    saved_qty = saved_state.get('entry_quantity')
+                    if saved_qty and abs(saved_qty - qty) < 1.0: # 오차 허용
+                        if saved_state.get('entry_time'):
+                            self.strategy.entry_time = saved_state['entry_time']
+                            logger.info(f"💾 저장된 진입 시간 복원: {self.strategy.entry_time}")
+                
+                # 상태 파일이 없거나 안 맞으면 현재 상태로 다시 저장 (동기화)
+                if not saved_state or saved_state.get('current_etf_symbol') != symbol:
+                     self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity
+                    })
+
+                target_found = True
+                logger.info(f"기존 포지션 복구: LONG ({symbol}) {qty}주 @ ${purch_avg_price}")
+                break
+                
+            elif symbol == self.etf_short:
+                self.strategy.current_position = "SHORT"
+                self.strategy.current_etf_symbol = self.etf_short
+                self.strategy.entry_price = purch_avg_price
+                self.strategy.entry_quantity = qty
+                self.strategy.entry_time = datetime.now()
+                
+                # [State Persistence] 저장된 상태가 있고, 보유 종목/수량이 일치하면 저장된 진입 시간 복원
+                if saved_state and saved_state.get('current_etf_symbol') == symbol:
+                    # 수량이 대략 일치하는지 확인 (분할 매매 등을 고려하지 않는다면 단순 비교)
+                    saved_qty = saved_state.get('entry_quantity')
+                    if saved_qty and abs(saved_qty - qty) < 1.0: # 오차 허용
+                        if saved_state.get('entry_time'):
+                            self.strategy.entry_time = saved_state['entry_time']
+                            logger.info(f"💾 저장된 진입 시간 복원: {self.strategy.entry_time}")
+                            
+                # 상태 파일이 없거나 안 맞으면 현재 상태로 다시 저장 (동기화)
+                if not saved_state or saved_state.get('current_etf_symbol') != symbol:
+                     self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity
+                    })
+
+                target_found = True
+                logger.info(f"기존 포지션 복구: SHORT ({symbol}) {qty}주 @ ${purch_avg_price}")
+                break
+                
+        if not target_found:
+            logger.info("복구할 기존 포지션 없음 (TSLL/TSLS 미보유)")
+            # 포지션이 없는데 상태 파일이 남아있으면 삭제 (엇박자 방지)
+            if saved_state:
+                self.state_manager.clear_state()
+
     def run(self):
         """봇 실행"""
         logger.info(f"Tesla 전환 매매 봇 시작 (Target: {self.original_symbol})")
+        
+        # 시작 시 계좌 상태 동기화
+        self.sync_internal_state_with_account()
+        
         self.is_running = True
         
         # 스케줄러 설정

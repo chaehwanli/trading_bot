@@ -262,9 +262,70 @@ class KisApi:
                 return None
         return None
 
+    def get_overseas_stock_balance(self):
+        """해외주식 체결기준 잔고 및 보유 종목 조회"""
+        path = "/uapi/overseas-stock/v1/trading/inquire-balance"
+        url = f"{self.base_url}{path}"
+        
+        # 실전: JTTT3012R / 모의: VTTT3012R
+        tr_id = "VTTT3012R" if self.is_paper_trading else "JTTT3012R"
+        
+        headers = self._get_common_headers(tr_id)
+        
+        params = {
+            "CANO": self.account_front,
+            "ACNT_PRDT_CD": self.account_back,
+            "OVRS_EXCG_CD": "NAS", # 거래소 코드 (NAS/AMS 등, 대표값 사용)
+            "TR_CRCY_CD": "USD",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": ""
+        }
+        
+        # 재시도 로직 추가
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                if i > 0: time.sleep(1)
+                
+                res = requests.get(url, headers=headers, params=params)
+                
+                if res.status_code == 500:
+                    logger.warning(f"잔고 조회 500 Error, retrying {i+1}/{max_retries}...")
+                    continue
+                    
+                res.raise_for_status()
+                data = res.json()
+                
+                if data['rt_cd'] != '0':
+                    logger.error(f"잔고 조회 실패: {data['msg1']}")
+                    return None
+                    
+                # output1: 잔고 상세 (보유 종목 리스트)
+                # output2: 계좌 자산 현황
+                return {
+                    "holdings": data['output1'],
+                    "assets": data['output2']
+                }
+                
+            except Exception as e:
+                logger.error(f"API 호출 오류 (get_overseas_stock_balance): {e}")
+                if i < max_retries - 1:
+                    continue
+                return None
+        return None
+
     def get_balance(self):
-        """해외주식 체결기준 잔고"""
-        # (기존 코드 유지)
+        """(Legacy) 해외주식 체결기준 잔고 - 예수금만 반환하는 구 메서드"""
+        balance_data = self.get_overseas_stock_balance()
+        if balance_data and 'assets' in balance_data:
+            # 실전/모의 키값이 다를 수 있으니 확인 필요하나, 보통 frcr_dncl_amt_2(외화예수금) 등 사용
+            # 여기서는 편의상 output2의 첫번째 값 or 특정 키 사용.
+            # 모의투자 문서 기준: 'frcr_dncl_amt_2' (외화예수금)
+            try:
+                # 안전하게 0으로 리턴하거나, 실제 파싱 로직 구현
+                return float(balance_data['assets'].get('frcr_dncl_amt_2', 100000.0))
+            except:
+                return 100000.0
         return 100000.0 
 
     def place_order(self, symbol, side, qty, price=0, order_type="00"):
