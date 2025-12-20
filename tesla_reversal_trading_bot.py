@@ -134,8 +134,6 @@ class TeslaReversalTradingBot:
         raise Exception(f"KIS API 가격 조회 실패: {symbol}")
         # logger.warning(f"KIS API 가격 조회 실패, yfinance 시도: {symbol}")
         # return self.data_fetcher.get_realtime_price(symbol)
-        logger.warning(f"KIS API 가격 조회 실패 (Bot), yfinance 시도: {symbol}")
-        return self.data_fetcher.get_realtime_price(symbol)
 
     def monitor_position(self):
         """포지션 모니터링 및 전환 조건 확인"""
