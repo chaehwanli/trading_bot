@@ -126,7 +126,7 @@ class TeslaReversalTradingBot:
         return "CLOSED"
 
     def _get_current_price(self, symbol: str):
-        """현재가 조회 (KIS API 우선 사용)"""
+        """현재가 조회 (KIS API 우선 -> 실패 시 DataFetcher(yfinance) Fallback)"""
         price = self.kis.get_current_price(symbol)
         if price:
             return price
@@ -134,6 +134,8 @@ class TeslaReversalTradingBot:
         raise Exception(f"KIS API 가격 조회 실패: {symbol}")
         # logger.warning(f"KIS API 가격 조회 실패, yfinance 시도: {symbol}")
         # return self.data_fetcher.get_realtime_price(symbol)
+        logger.warning(f"KIS API 가격 조회 실패 (Bot), yfinance 시도: {symbol}")
+        return self.data_fetcher.get_realtime_price(symbol)
 
     def monitor_position(self):
         """포지션 모니터링 및 전환 조건 확인"""

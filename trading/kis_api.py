@@ -149,21 +149,36 @@ class KisApi:
             "SYMB": symbol
         }
         
-        try:
-            res = requests.get(url, headers=headers, params=params)
-            res.raise_for_status()
-            data = res.json()
-            
-            if data['rt_cd'] != '0':
-                logger.error(f"시세 조회 실패 ({symbol}): {data['msg1']}")
-                return None
+        # 재시도 로직 추가 (500 에러 대응)
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                # API 호출 간격 조절
+                if i > 0: time.sleep(1)
                 
-            current_price = float(data['output']['last'])
-            return current_price
-            
-        except Exception as e:
-            logger.error(f"API 호출 오류 (get_current_price): {e}")
-            return None
+                res = requests.get(url, headers=headers, params=params)
+                
+                if res.status_code == 500:
+                    logger.warning(f"시세 조회 500 Error ({symbol}), retrying {i+1}/{max_retries}...")
+                    continue
+                
+                res.raise_for_status()
+                data = res.json()
+                
+                if data['rt_cd'] != '0':
+                    logger.error(f"시세 조회 실패 ({symbol}): {data['msg1']}")
+                    return None
+                    
+                current_price = float(data['output']['last'])
+                return current_price
+                
+            except Exception as e:
+                logger.error(f"API 호출 오류 (get_current_price): {e}")
+                if i < max_retries - 1:
+                    time.sleep(1)
+                    continue
+                return None
+        return None
 
     def get_daily_price(self, symbol: str, period_code="D"):
         """

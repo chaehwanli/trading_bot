@@ -28,6 +28,32 @@ class DataFetcher:
     def get_realtime_price(self, symbol: str) -> Optional[float]:
         """실시간 가격 조회"""
         return self.kis.get_current_price(symbol)
+        #"""실시간 가격 조회 (KIS 우선 -> 실패시 yfinance)"""
+        # price = self.kis.get_current_price(symbol)
+        # if price:
+        #     return price
+            
+        # try:
+        #     import yfinance as yf
+        #    logger.info(f"KIS API 가격 조회 실패, yfinance 시도: {symbol}")
+        #    ticker = yf.Ticker(symbol)
+        #    # data = ticker.history(period="1m") # 느림
+        #    # if not data.empty:
+        #    #     return float(data['Close'].iloc[-1])
+            
+        #    # fast_info 사용 권장
+        #    if hasattr(ticker, 'fast_info') and 'last_price' in ticker.fast_info:
+        #         return float(ticker.fast_info['last_price'])
+                 
+        #    # Fallback to history if fast_info fails
+        #    data = ticker.history(period='1d')
+        #    if not data.empty:
+        #        return float(data['Close'].iloc[-1])
+                
+        #except Exception as e:
+        #    logger.error(f"yfinance 가격 조회 실패: {e}")
+            
+        #return None
     
     def get_historical_data(
         self, 
