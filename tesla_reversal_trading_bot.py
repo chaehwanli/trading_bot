@@ -99,6 +99,18 @@ class TeslaReversalTradingBot:
     def _get_market_status(self):
         """현재 시간 기준 장 상태 반환 (한국 시간 기준)"""
         now = datetime.now(self.timezone)
+        
+        # === 주말 체크 (토요일=5, 일요일=6) ===
+        # 1. 한국 기준 주말
+        if now.weekday() >= 5:
+            return "CLOSED"
+        
+        # 2. 미국 기준 주말 (US/Eastern)
+        us_eastern = pytz.timezone('US/Eastern')
+        now_us = datetime.now(us_eastern)
+        if now_us.weekday() >= 5:
+            return "CLOSED"
+
         current_time = now.time()
         is_dst = self._is_dst()
         
