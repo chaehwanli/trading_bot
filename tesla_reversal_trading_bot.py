@@ -56,8 +56,14 @@ class TeslaReversalTradingBot:
         self.state_manager = TradeStateManager()
         
         # 전략 초기화
-        # ReversalStrategy는 params만 받음 (__init__ 확인완료)
         self.strategy = ReversalStrategy(params=params)
+        
+        # [Capital Persistence] 저장된 자본금이 있으면 복원
+        saved_state = self.state_manager.load_state()
+        if saved_state and 'capital' in saved_state:
+            self.strategy.capital = float(saved_state['capital'])
+            logger.info(f"💾 저장된 자본금 복원: ${self.strategy.capital:.2f}")
+        
         self.scheduler = TradingScheduler()
         self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID)
         self.timezone = pytz.timezone("Asia/Seoul")
@@ -286,7 +292,8 @@ class TeslaReversalTradingBot:
                     "current_etf_symbol": self.strategy.current_etf_symbol,
                     "entry_price": self.strategy.entry_price,
                     "entry_time": self.strategy.entry_time,
-                    "entry_quantity": self.strategy.entry_quantity
+                    "entry_quantity": self.strategy.entry_quantity,
+                    "capital": self.strategy.capital
                 })
                 
                 # === 강제 청산 날짜 설정 ===
@@ -366,8 +373,15 @@ class TeslaReversalTradingBot:
         self.strategy.entry_quantity = None
         self.forced_close_date = None
         
-        # [State Persistence] 청산 후 상태 초기화
-        self.state_manager.clear_state()
+        # [State Persistence] 청산 후 상태 업데이트 (자본금 유지)
+        self.state_manager.save_state({
+            "current_position": None,
+            "current_etf_symbol": None,
+            "entry_price": None,
+            "entry_time": None,
+            "entry_quantity": None,
+            "capital": self.strategy.capital
+        })
     
     def execute_trading_strategy(self):
         """거래 전략 실행 (정규장)"""
@@ -451,7 +465,8 @@ class TeslaReversalTradingBot:
                                     "current_etf_symbol": self.strategy.current_etf_symbol,
                                     "entry_price": self.strategy.entry_price,
                                     "entry_time": self.strategy.entry_time,
-                                    "entry_quantity": self.strategy.entry_quantity
+                                    "entry_quantity": self.strategy.entry_quantity,
+                                    "capital": self.strategy.capital
                                 })
                                 
                                 logger.info(
@@ -512,11 +527,13 @@ class TeslaReversalTradingBot:
         # 저장된 상태 로드 시도
         saved_state = self.state_manager.load_state()
         
-        # 1. 자본금 동기화 (예수금 + 평가금액?)
-        # 여기서는 Strategy의 capital을 보정하는 것이 맞는지 고민 필요. 
-        # Strategy는 '할당된 자본' 개념이므로 초기값 유지 + PnL 누적으로 갈지, 
-        # 아니면 현재 계좌의 실제 예수금으로 리셋할지.
-        # 일단은 포지션 복구에 집중.
+        # 1. 자본금 동기화 (초기값 유지 + PnL 누적)
+        if saved_state and 'capital' in saved_state:
+            self.strategy.capital = float(saved_state['capital'])
+            logger.info(f"💰 자본금 복원 (상태파일): ${self.strategy.capital:.2f}")
+        else:
+            # 상태 파일이 없는 경우, 현재 포지션 평가를 통해 추정 가능하나 단순 초기값 유지
+            logger.info(f"💰 자본금 유지 (초기값): ${self.strategy.capital:.2f}")
         
         # 2. 보유 종목 확인 (TSLL / TSLS)
         target_found = False
@@ -559,7 +576,8 @@ class TeslaReversalTradingBot:
                         "current_etf_symbol": self.strategy.current_etf_symbol,
                         "entry_price": self.strategy.entry_price,
                         "entry_time": self.strategy.entry_time,
-                        "entry_quantity": self.strategy.entry_quantity
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital
                     })
 
                 target_found = True
@@ -589,7 +607,8 @@ class TeslaReversalTradingBot:
                         "current_etf_symbol": self.strategy.current_etf_symbol,
                         "entry_price": self.strategy.entry_price,
                         "entry_time": self.strategy.entry_time,
-                        "entry_quantity": self.strategy.entry_quantity
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital
                     })
 
                 target_found = True
@@ -598,9 +617,16 @@ class TeslaReversalTradingBot:
                 
         if not target_found:
             logger.info("복구할 기존 포지션 없음 (TSLL/TSLS 미보유)")
-            # 포지션이 없는데 상태 파일이 남아있으면 삭제 (엇박자 방지)
-            if saved_state:
-                self.state_manager.clear_state()
+            # 포지션이 없는데 상태 파일에 포지션이 기록되어 있었다면 (엇박자), 포지션 정보만 제거하고 자본금은 유지
+            if saved_state and saved_state.get('current_position'):
+                self.state_manager.save_state({
+                    "current_position": None,
+                    "current_etf_symbol": None,
+                    "entry_price": None,
+                    "entry_time": None,
+                    "entry_quantity": None,
+                    "capital": self.strategy.capital
+                })
 
     def run(self):
         """봇 실행"""
