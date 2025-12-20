@@ -378,10 +378,10 @@ class TeslaReversalTradingBot:
         # DAYTIME(한국 주간)은 모의투자(테스트)에서만 허용
         allowed_statuses = ["REGULAR"]
         if self.kis.is_paper_trading:
-            allowed_statuses.append("DAYTIME")
-            allowed_statuses.append("AFTERMARKET")
-            allowed_statuses.append("CLOSED")
             allowed_statuses.append("PREMARKET")
+            #allowed_statuses.append("DAYTIME")
+            #allowed_statuses.append("AFTERMARKET")
+            #allowed_statuses.append("CLOSED")
             
         if market_status in allowed_statuses:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
