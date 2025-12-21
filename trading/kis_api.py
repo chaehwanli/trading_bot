@@ -8,21 +8,26 @@ import sys
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config.settings import KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NO, KIS_BASE_URL
+from config.settings import (
+    KIS_REAL_APP_KEY, KIS_REAL_APP_SECRET, KIS_REAL_ACCOUNT_NO, KIS_REAL_BASE_URL,
+    KIS_PAPER_APP_KEY, KIS_PAPER_APP_SECRET, KIS_PAPER_ACCOUNT_NO, KIS_PAPER_BASE_URL
+)
 from utils.logger import logger
 
 class KisApi:
     """한국투자증권 OpenAPI 래퍼 클래스"""
     
     def __init__(self, is_paper_trading=False):
-        self.app_key = KIS_APP_KEY
-        self.app_secret = KIS_APP_SECRET
-        self.account_no = KIS_ACCOUNT_NO
-        
         if is_paper_trading:
-            self.base_url = "https://openapivts.koreainvestment.com:29443"
+            self.app_key = KIS_PAPER_APP_KEY
+            self.app_secret = KIS_PAPER_APP_SECRET
+            self.account_no = KIS_PAPER_ACCOUNT_NO
+            self.base_url = KIS_PAPER_BASE_URL
         else:
-            self.base_url = KIS_BASE_URL
+            self.app_key = KIS_REAL_APP_KEY
+            self.app_secret = KIS_REAL_APP_SECRET
+            self.account_no = KIS_REAL_ACCOUNT_NO
+            self.base_url = KIS_REAL_BASE_URL
             
         self.access_token = None
         self.token_expiry = None
