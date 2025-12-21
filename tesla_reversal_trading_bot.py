@@ -79,6 +79,15 @@ class TeslaReversalTradingBot:
         
         logger.info(f"Tesla 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
         
+        # 텔레그램으로도 초기화 알림 전송
+        mode_str = "모의 투자" if is_paper_trading else "실전 투자"
+        self.notifier.send_message(
+            f"🚀 <b>Tesla 전환 매매 봇 초기화 ({mode_str})</b>\n\n"
+            f"• 종목: {self.original_symbol}\n"
+            f"• ETF: {self.etf_long} / {self.etf_short}\n"
+            f"• 시간: {datetime.now(self.timezone).strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
     def _is_dst(self):
         """미국 서머타임 체킹 (US/Eastern 기준)"""
         eastern = pytz.timezone('US/Eastern')

@@ -23,9 +23,10 @@ class TelegramNotifier:
             
         try:
             url = f"{self.base_url}/sendMessage"
+            prefix_str = f"[{self.prefix}] " if self.prefix else ""
             payload = {
                 "chat_id": self.chat_id,
-                "text": message,
+                "text": f"{prefix_str}{message}",
                 "parse_mode": "HTML" # HTML 포맷 지원
             }
             response = requests.post(url, json=payload, timeout=5)
