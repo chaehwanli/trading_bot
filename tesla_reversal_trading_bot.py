@@ -11,7 +11,7 @@ import schedule
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config.settings import REVERSAL_STRATEGY_PARAMS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config.settings import REVERSAL_STRATEGY_PARAMS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, PAPER_TRADING
 from data.data_fetcher import DataFetcher
 from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
@@ -65,7 +65,10 @@ class TeslaReversalTradingBot:
             logger.info(f"💾 저장된 자본금 복원: ${self.strategy.capital:.2f}")
         
         self.scheduler = TradingScheduler()
-        self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID)
+        
+        # 텔레그램 알림 말머리 설정 (모의투자/실전투자 구분)
+        prefix = "모의 투자" if is_paper_trading else "실 투자"
+        self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID, prefix=prefix)
         self.timezone = pytz.timezone("Asia/Seoul")
         self.is_running = False
         
@@ -698,5 +701,5 @@ if __name__ == "__main__":
     custom_params = REVERSAL_STRATEGY_PARAMS.copy()
     custom_params["symbol"] = "TSLA"
     
-    bot = TeslaReversalTradingBot(params=custom_params)
+    bot = TeslaReversalTradingBot(params=custom_params, is_paper_trading=PAPER_TRADING)
     bot.run()

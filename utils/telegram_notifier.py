@@ -7,9 +7,10 @@ logger = logging.getLogger(__name__)
 class TelegramNotifier:
     """Telegram 알림 발송 유틸리티"""
     
-    def __init__(self, token: Optional[str] = None, chat_id: Optional[str] = None):
+    def __init__(self, token: Optional[str] = None, chat_id: Optional[str] = None, prefix: str = ""):
         self.token = token
         self.chat_id = chat_id
+        self.prefix = prefix
         self.base_url = f"https://api.telegram.org/bot{self.token}" if self.token else None
         
         if not self.token or not self.chat_id:
@@ -40,8 +41,9 @@ class TelegramNotifier:
         # 사이드 표시: BUY(매수), SELL(매도)
         side_kr = "매수" if side.upper() == "BUY" else "매도"
         
+        prefix_str = f"[{self.prefix}] " if self.prefix else ""
         message = (
-            f"{emoji} <b>[주문 알림] {symbol} {side_kr}</b>\n\n"
+            f"{prefix_str}{emoji} <b>[주문 알림] {symbol} {side_kr}</b>\n\n"
             f"• 가격: <code>${price:.2f}</code>\n"
             f"• 수량: <code>{quantity}</code>\n"
             f"• 사유: {reason}\n"
@@ -51,8 +53,9 @@ class TelegramNotifier:
 
     def send_error_alert(self, error_msg: str):
         """에러 알림"""
+        prefix_str = f"[{self.prefix}] " if self.prefix else ""
         message = (
-            f"🚨 <b>[오류 발생]</b>\n\n"
+            f"{prefix_str}🚨 <b>[오류 발생]</b>\n\n"
             f"{error_msg}\n"
             f"• 시간: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
@@ -82,8 +85,9 @@ class TelegramNotifier:
              # MACD, Signal, Hist
              indicators_info += f"• MACD: {macd.get('macd',0):.2f} / Sig: {macd.get('signal',0):.2f}"
         
+        prefix_str = f"[{self.prefix}] " if self.prefix else ""
         message = (
-            f"📊 <b>[전략 실행 결과] {symbol}</b>\n\n"
+            f"{prefix_str}📊 <b>[전략 실행 결과] {symbol}</b>\n\n"
             f"• 장 상태: {market_status}\n"
             f"• 현재 포지션: {current_position if current_position else '없음'}\n"
             f"• 신호: {signal_emoji} {signal} (확률: {confidence:.2f})\n"
