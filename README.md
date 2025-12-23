@@ -48,11 +48,17 @@ pip install -r requirements.txt
 ```bash
 # backtest
 python reversal_backtest.py
+데이터 파일에 있는 모든 기간을 자동으로 감지하여 테스트 YFinance의 경우
+python3 reversal_backtest.py --source yfinance --use-all-data
+특정 기간 지정
+python3 reversal_backtest.py --source yfinance --start-date 2024-01-01 --end-date 2024-12-31
 # 테스트 모드
 python test_bot.py
-
+# 수익율 조합 테스트
+python3 optimize_parameters.py --source yfinance --symbols TSLA 2>&1 | tee optimization_log.txt
+python3 optimize_parameters.py --source yfinance --symbols TSLA GOOGL AAPL 2>&1 | tee optimization_log.txt
 # 실제 거래 모드
-python main.py
+python tesla_reversal_trading_bot.py
 ```
 
 ## 주의사항
