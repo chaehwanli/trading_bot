@@ -667,10 +667,10 @@ class TeslaReversalTradingBot:
         # 여기서는 기존 구조를 유지하되 force_close만 제거.
         
         # 1. 포지션 모니터링: 매 시간 31분 00초에 실행
-        schedule.every().hour.at(":31:00").do(self.monitor_position)
+        schedule.every().hour.at("31:00").do(self.monitor_position)
         
         # 2. 거래 전략 실행: 매 시간 31분 20초에 실행
-        schedule.every().hour.at(":31:20").do(self.execute_trading_strategy)
+        schedule.every().hour.at("31:20").do(self.execute_trading_strategy)
         
         # 3. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
         
