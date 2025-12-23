@@ -36,9 +36,52 @@ trading_bot/
 ```
 
 ## 설치 방법
+
+### Linux (Ubuntu 등)
 ```bash
 cd ~/trading_bot
 pip install -r requirements.txt
+```
+
+### macOS (Mac 사용 설명서)
+Mac 환경에서 봇을 설치하고 실행하는 방법입니다.
+
+#### 1. 필수 도구 설치 (Homebrew)
+Homebrew가 설치되어 있지 않다면 먼저 설치하세요:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+#### 2. Python 설치
+Homebrew를 사용하여 최신 Python을 설치합니다:
+```bash
+brew install python
+```
+
+#### 3. 프로젝트 복제 및 가상 환경 설정
+```bash
+# 프로젝트 폴더로 이동
+cd ~/trading_bot
+
+# 가상 환경 생성 (venv)
+python3 -m venv venv
+
+# 가상 환경 활성화
+source venv/bin/activate
+```
+
+#### 4. 의존성 패키지 설치
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### 5. 환경 변수 설정
+`.env.example` 파일을 복사하여 `.env` 파일을 만들고, 사용자 정보를 입력합니다:
+```bash
+cp .env.example .env
+# vi 나 nano 등의 에디터로 .env 파일 수정
+nano .env
 ```
 
 ## 설정
