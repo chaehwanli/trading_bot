@@ -82,7 +82,7 @@ class ReversalTradingBot:
                 self._close_position(current_price, "FORCE_CLOSE")
             
             # 최대 자본 손실률 확인
-            if self.strategy.check_max_drawdown():
+            if self.strategy.check_max_drawdown(current_price):
                 logger.error("최대 자본 손실률 초과 - 거래 중단")
                 self.stop()
                 

@@ -214,7 +214,7 @@ class TeslaReversalTradingBot:
                             logger.info("✅ FORCE_CLOSE 이익 실현으로 연속 손절 카운트 초기화")
             
             # 최대 자본 손실률 확인
-            if self.strategy.check_max_drawdown():
+            if self.strategy.check_max_drawdown(current_price):
                 logger.error("최대 자본 손실률 초과 - 거래 중단")
                 self.stop()
                 

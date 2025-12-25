@@ -516,13 +516,19 @@ class ReversalStrategy:
         
         return None
 
-    def check_max_drawdown(self) -> bool:
+    def check_max_drawdown(self, current_etf_price: Optional[float] = None) -> bool:
         """최대 자본 손실률 확인"""
-        max_drawdown = self.params.get("max_drawdown", 0.05)
-        current_drawdown = (self.initial_capital - self.capital) / self.initial_capital
+        max_drawdown_rate = self.params.get("max_drawdown", 0.05)
         
-        if current_drawdown >= max_drawdown:
-            logger.warning(f"최대 자본 손실률 초과: {current_drawdown:.2%} >= {max_drawdown:.2%}")
+        # 현재 총 자산 가치 계산 (현금 + 포지션 가치)
+        total_asset_value = self.capital
+        if self.current_position and self.entry_quantity and current_etf_price:
+            total_asset_value += (self.entry_quantity * current_etf_price)
+            
+        current_drawdown = (self.initial_capital - total_asset_value) / self.initial_capital
+        
+        if current_drawdown >= max_drawdown_rate:
+            logger.warning(f"최대 자본 손실률 초과: {current_drawdown:.2%} >= {max_drawdown_rate:.2%}")
             return True
         
         return False
