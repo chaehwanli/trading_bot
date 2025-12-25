@@ -58,11 +58,20 @@ class TeslaReversalTradingBot:
         # 전략 초기화
         self.strategy = ReversalStrategy(params=params)
         
-        # [Capital Persistence] 저장된 자본금이 있으면 복원
+        # [State Persistence] 저장된 상태가 있으면 복원 (자본금 및 포지션 정보)
         saved_state = self.state_manager.load_state()
-        if saved_state and 'capital' in saved_state:
-            self.strategy.capital = float(saved_state['capital'])
-            logger.info(f"💾 저장된 자본금 복원: ${self.strategy.capital:.2f}")
+        if saved_state:
+            if 'capital' in saved_state:
+                self.strategy.capital = float(saved_state['capital'])
+                logger.info(f"💾 저장된 자본금 복원: ${self.strategy.capital:.2f}")
+            
+            if saved_state.get('current_position'):
+                self.strategy.current_position = saved_state['current_position']
+                self.strategy.current_etf_symbol = saved_state.get('current_etf_symbol')
+                self.strategy.entry_price = saved_state.get('entry_price')
+                self.strategy.entry_quantity = saved_state.get('entry_quantity')
+                self.strategy.entry_time = saved_state.get('entry_time')
+                logger.info(f"💾 저장된 포지션 상태 복원: {self.strategy.current_position} ({self.strategy.current_etf_symbol})")
         
         self.scheduler = TradingScheduler()
         
@@ -641,16 +650,13 @@ class TeslaReversalTradingBot:
                 
         if not target_found:
             logger.info("복구할 기존 포지션 없음 (TSLL/TSLS 미보유)")
-            # 포지션이 없는데 상태 파일에 포지션이 기록되어 있었다면 (엇박자), 포지션 정보만 제거하고 자본금은 유지
+            # [Caution] KIS API 지연 등으로 종목이 안 보일 수 있으므로 로컬 상태를 함부로 지우지 않음.
+            # 다만 로컬상태에는 포지션이 있는데 계좌에는 없는 경우 강력한 경고를 발생시켜 확인 유도.
             if saved_state and saved_state.get('current_position'):
-                self.state_manager.save_state({
-                    "current_position": None,
-                    "current_etf_symbol": None,
-                    "entry_price": None,
-                    "entry_time": None,
-                    "entry_quantity": None,
-                    "capital": self.strategy.capital
-                })
+                logger.warning(
+                    f"⚠️ 경고: 로컬 상태에는 {saved_state.get('current_position')} 포지션이 있으나 "
+                    f"실제 계좌에서는 조회되지 않습니다. 수동 확인이 필요합니다."
+                )
 
     def run(self):
         """봇 실행"""
