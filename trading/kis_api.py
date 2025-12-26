@@ -287,8 +287,8 @@ class KisApi:
         path = "/uapi/overseas-stock/v1/trading/inquire-balance"
         url = f"{self.base_url}{path}"
         
-        # 실전: JTTT3012R / 모의: VTTT3012R
-        tr_id = "VTTT3012R" if self.is_paper_trading else "JTTT3012R"
+        # 실전: TTTT3012R / 모의: VTTT3012R
+        tr_id = "VTTT3012R" if self.is_paper_trading else "TTTT3012R"
         
         headers = self._get_common_headers(tr_id)
         
@@ -359,9 +359,9 @@ class KisApi:
         # 모의: VTTT1002U / VTTT1006U (미국)
         
         if side == "BUY":
-            tr_id = "VTTT1002U" if self.is_paper_trading else "JTTT1002U"
+            tr_id = "VTTT1002U" if self.is_paper_trading else "TTTT1002U"
         elif side == "SELL":
-            tr_id = "VTTT1006U" if self.is_paper_trading else "JTTT1006U"
+            tr_id = "VTTT1006U" if self.is_paper_trading else "TTTT1006U"
 
         # 모의투자는 지정가(00)만 가능
         if self.is_paper_trading:
