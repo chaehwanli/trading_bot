@@ -390,20 +390,26 @@ class KisApi:
         elif side == "SELL":
             tr_id = "VTTT1006U" if self.is_paper_trading else "TTTT1006U"
 
-        # 모의투자는 지정가(00)만 가능
-        if self.is_paper_trading:
-            order_type = "00"
-            # 가격이 0(시장가 의도)인 경우 현재가 조회
-            if float(price) <= 0:
-                current_price = self.get_current_price(symbol)
-                if current_price:
-                    price = current_price
-                    logger.info(f"[Mock] 시장가 주문 -> 지정가 변환 {symbol} @ {price}")
-                else:
-                    logger.error(f"[Mock] 가격 조회 실패로 주문 중단: {symbol}")
-                    return None
-            
         ovs_excd = self._guess_exch_code(symbol)
+        
+        # 미국 시장(NAS/AMS/NYS 등)은 시장가(01) 주문 시 '주문구분 입력오류'가 발생하는 경우가 많음
+        # 따라서 시장가 요청 시 지정가(00) + 현재가(여유가)로 변환하여 전송
+        if ovs_excd != "KRX" and order_type == "01":
+            logger.info(f"[{ovs_excd}] 시장가 주문을 지정가(여유가)로 변환합니다. (PaperTrading: {self.is_paper_trading})")
+            order_type = "00"
+            if float(price) <= 0:
+                curr_price = self.get_current_price(symbol)
+                if curr_price:
+                    # 매수는 현재가보다 1호가(1센트) 높게, 매도는 1호가 낮게 설정하여 즉시 체결 유도
+                    # (사용자 요청 반영: 호가단위 1센트 기준 1호가 버퍼 적용)
+                    if side == "BUY":
+                        price = round(curr_price + 0.01, 2)
+                    else:
+                        price = round(curr_price - 0.01, 2)
+                    logger.info(f"[{ovs_excd}] 시장가 대체 지정가 (1호가 버퍼): {curr_price} -> {price}")
+                else:
+                    logger.error(f"[{ovs_excd}] 현재가 조회 실패로 주문을 진행할 수 없습니다.")
+                    return None
         
         if ovs_excd == "KRX":
             # 국내 주식 현금 주문
@@ -424,7 +430,8 @@ class KisApi:
                 "PDNO": symbol,
                 "ORD_DVSN": "01" if order_type == "01" else "00", # 00: 지정가, 01: 시장가
                 "ORD_QTY": str(int(qty)),
-                "ORD_UNPR": str(int(price)) if order_type == "00" else "0"
+                # 국내 주식 호가단위(10원) 반영 (사용자 요청: 10원 단위로 반올림)
+                "ORD_UNPR": str(int(round(float(price), -1))) if order_type == "00" else "0"
             }
         else:
             # 해외 주식 주문
