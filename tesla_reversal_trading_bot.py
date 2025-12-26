@@ -677,6 +677,11 @@ class TeslaReversalTradingBot:
                     f"실제 계좌에서는 조회되지 않습니다. 수동 확인이 필요합니다."
                 )
 
+    def check_token_renewal(self):
+        """KIS API 토큰 갱신 체크"""
+        logger.info("KIS API 토큰 유효성 체크 중...")
+        self.kis.ensure_valid_token()
+
     def run(self):
         """봇 실행"""
         logger.info(f"Tesla 전환 매매 봇 시작 (Target: {self.original_symbol})")
@@ -697,7 +702,10 @@ class TeslaReversalTradingBot:
         # 2. 거래 전략 실행: 매 시간 31분 20초에 실행
         schedule.every().hour.at("31:20").do(self.execute_trading_strategy)
         
-        # 3. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
+        # 3. 토큰 갱신 체크: 매 시간 25분 00초에 실행 (만료 1시간 전 자동 갱신 보조)
+        schedule.every().hour.at("25:00").do(self.check_token_renewal)
+        
+        # 4. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
         
         # 초기 1회 실행 (테스트용)
         logger.info("봇 시작 시 초기 1회 전략 실행...")

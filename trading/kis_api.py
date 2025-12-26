@@ -117,6 +117,18 @@ class KisApi:
         except Exception as e:
             logger.error(f"토큰 발급 실패: {e}")
             return None
+            
+    def ensure_valid_token(self):
+        """토큰이 유효한지 확인하고 필요시 갱신 (만료 1시간 전)"""
+        if not self.access_token or not self.token_expiry or datetime.now() >= self.token_expiry:
+            logger.info("토큰 만료 또는 없음 - 발급 진행")
+            return self._get_access_token()
+        
+        # 만료 1시간 이내인지 확인 (이미 _get_access_token에서 1시간을 뺐으므로 여기서는 여유있게 30분 정도 더 확인하거나 
+        # 사용자의 1시간 전 갱신 요청을 수용하기 위해 명시적으로 계산)
+        # _get_access_token 내부의 self.token_expiry는 이미 (실제만료 - 1시간) 임.
+        # 따라서 현재 시간이 self.token_expiry를 지났다면 이미 실제 만료 1시간 전임.
+        return self.access_token
 
     def _get_common_headers(self, tr_id):
         """공통 헤더 생성"""
