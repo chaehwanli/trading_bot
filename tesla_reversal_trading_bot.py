@@ -79,6 +79,14 @@ class TeslaReversalTradingBot:
         prefix = "모의 투자" if is_paper_trading else "실 투자"
         self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID, prefix=prefix)
         self.timezone = pytz.timezone("Asia/Seoul")
+        
+        # === 거래소별 시장 시간대 설정 ===
+        self.exchange = self.kis._guess_exch_code(self.original_symbol)
+        if self.exchange == "KRX":
+            self.market_timezone = pytz.timezone("Asia/Seoul")
+        else:
+            self.market_timezone = pytz.timezone("US/Eastern")
+            
         self.is_running = False
         
         # 쿨다운 상태 (날짜 기준)
@@ -118,33 +126,33 @@ class TeslaReversalTradingBot:
         return current_date
 
     def _get_market_status(self):
-        """현재 시간 기준 장 상태 반환 (한국 시간 기준)"""
+        """현재 시간 기준 장 상태 반환 (미국/한국 거래소별 분기)"""
         now = datetime.now(self.timezone)
         
-        # === 주말 체크 (토요일=5, 일요일=6) ===
-        # 1. 한국 기준 주말
-        if now.weekday() >= 5:
-            return "CLOSED"
+        # === 주말 체크 (시장 시간대 기준) ===
+        now_market = datetime.now(self.market_timezone)
         
-        # 2. 미국 기준 주말 (US/Eastern)
-        us_eastern = pytz.timezone('US/Eastern')
-        now_us = datetime.now(us_eastern)
-        if now_us.weekday() >= 5:
+        if now_market.weekday() >= 5:
             return "CLOSED"
 
         current_time = now.time()
-        is_dst = self._is_dst()
-        
-        # 시간 변환을 위한 분 단위 계산
         curr_min = current_time.hour * 60 + current_time.minute
-        
+
+        # --- 한국 주식 (KRX) ---
+        if self.exchange == "KRX":
+            # 정규장: 09:00 ~ 15:30
+            if 540 <= curr_min < 930:
+                return "REGULAR"
+            return "CLOSED"
+
+        # --- 미국 주식 (NAS/AMS 등) ---
+        is_dst = self._is_dst()
         if is_dst: # Summer Time
             # Daytime: 10:00 ~ 17:00
             if 600 <= curr_min < 1020: return "DAYTIME"
             # Premarket: 17:00 ~ 22:30
             if 1020 <= curr_min < 1350: return "PREMARKET"
-            # Regular: 22:30 ~ 05:00 (Next day handled by overflow check if needed, but here we assume simple ranges for now. 
-            # Note: Regular crosses midnight local time. 22:30 is 1350. 05:00 is 300.
+            # Regular: 22:30 ~ 05:00
             if 1350 <= curr_min or curr_min < 300: return "REGULAR"
             # Aftermarket: 05:00 ~ 07:00
             if 300 <= curr_min < 420: return "AFTERMARKET"
@@ -209,8 +217,9 @@ class TeslaReversalTradingBot:
             # If forced_close_date is set, compare with current date.
             
             if self.forced_close_date:
-                today = datetime.now(self.timezone).date()
-                if today >= self.forced_close_date:
+                # 시장 날짜 기준으로 비교
+                market_date = datetime.now(self.market_timezone).date()
+                if market_date >= self.forced_close_date:
                     self._close_position(current_price, "FORCE_CLOSE_TRADING_DAY_LIMIT")
                     
                     # === FORCE_CLOSE 후 처리 ===
@@ -332,7 +341,8 @@ class TeslaReversalTradingBot:
                 # === 강제 청산 날짜 설정 ===
                 # LONG: 3 trading days, SHORT: 1 trading day
                 target_days = 3 if result['to_etf'] == self.etf_long else 1
-                entry_date = datetime.now(self.timezone).date()
+                # 시장 날짜 기준으로 진입일 설정
+                entry_date = datetime.now(self.market_timezone).date()
                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                 logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
                 
@@ -401,6 +411,8 @@ class TeslaReversalTradingBot:
         )
         
         # 포지션 초기화
+        self.strategy.current_position = None
+        self.strategy.current_etf_symbol = None
         self.strategy.entry_price = None
         self.strategy.entry_time = None
         self.strategy.entry_quantity = None
@@ -501,6 +513,13 @@ class TeslaReversalTradingBot:
                                     "entry_quantity": self.strategy.entry_quantity,
                                     "capital": self.strategy.capital
                                 })
+                                
+                                # === 강제 청산 날짜 설정 ===
+                                # LONG: 3 trading days, SHORT: 1 trading day
+                                target_days = 3 if position_side == "LONG" else 1
+                                entry_date = datetime.now(self.market_timezone).date()
+                                self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
+                                logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
                                 
                                 logger.info(
                                     f"{position_side} 포지션 진입: {target_etf} @ ${etf_price:.2f} x {quantity:.2f} "

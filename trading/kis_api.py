@@ -133,26 +133,38 @@ class KisApi:
         }
 
     def _guess_exch_code(self, symbol):
-        """거래소 코드 추정 (미국 주식 기준)"""
+        """거래소 코드 추정"""
+        # 한국 주식 (6자리 숫자)
+        if symbol.isdigit() and len(symbol) == 6:
+            return "KRX"
+            
         if symbol in ['TSLT', 'TSLZ', 'BTCL', 'BTCZ', 'NVDX', 'NVDQ'] :
             return "AMS"
-        #if symbol in ['TSLL', 'TSLZ', 'TSLT']: # 주요 ETF 확인
-        #    return "NAS"
-        # 그 외 AMS로 가정 (혹은 NYS)
         return "NAS"
 
     def get_current_price(self, symbol: str):
-        """해외주식 현재가 상세 조회"""
-        path = "/uapi/overseas-price/v1/quotations/price"
-        url = f"{self.base_url}{path}"
+        """현재가 상세 조회 (국내/해외 분기)"""
         exch_code = self._guess_exch_code(symbol)
         
-        headers = self._get_common_headers("HHDFS00000300")
-        params = {
-            "AUTH": "",
-            "EXCD": exch_code,
-            "SYMB": symbol
-        }
+        if exch_code == "KRX":
+            # 국내 주식 현재가 상세 조회
+            path = "/uapi/domestic-stock/v1/quotations/inquire-price"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("FHKST01010100")
+            params = {
+                "fid_cond_mrkt_div_code": "J",
+                "fid_input_iscd": symbol
+            }
+        else:
+            # 해외 주식 현재가 상세 조회
+            path = "/uapi/overseas-price/v1/quotations/price"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("HHDFS00000300")
+            params = {
+                "AUTH": "",
+                "EXCD": exch_code,
+                "SYMB": symbol
+            }
         
         # 재시도 로직 추가 (500 에러 대응)
         max_retries = 3
@@ -174,7 +186,10 @@ class KisApi:
                     logger.error(f"시세 조회 실패 ({symbol}): {data['msg1']}")
                     return None
                     
-                current_price = float(data['output']['last'])
+                if exch_code == "KRX":
+                    current_price = float(data['output']['stck_prpr'])
+                else:
+                    current_price = float(data['output']['last'])
                 return current_price
                 
             except Exception as e:
@@ -376,23 +391,44 @@ class KisApi:
                     logger.error(f"[Mock] 가격 조회 실패로 주문 중단: {symbol}")
                     return None
             
-        path = "/uapi/overseas-stock/v1/trading/order"
-        url = f"{self.base_url}{path}"
-        
-        headers = self._get_common_headers(tr_id)
-        
         ovs_excd = self._guess_exch_code(symbol)
         
-        body = {
-            "CANO": self.account_front,
-            "ACNT_PRDT_CD": self.account_back,
-            "OVRS_EXCG_CD": ovs_excd,
-            "PDNO": symbol,
-            "ORD_QTY": str(int(qty)),
-            "OVRS_ORD_UNPR": str(price), 
-            "ORD_SVR_DVSN_CD": "0",
-            "ORD_DVSN": order_type 
-        }
+        if ovs_excd == "KRX":
+            # 국내 주식 현금 주문
+            path = "/uapi/domestic-stock/v1/trading/order-cash"
+            url = f"{self.base_url}{path}"
+            
+            # 실전: TTTC0802U(매수), TTTC0801U(매도)
+            # 모의: VTTC0802U(매수), VTTC0801U(매도)
+            if side == "BUY":
+                tr_id = "VTTC0802U" if self.is_paper_trading else "TTTC0802U"
+            else:
+                tr_id = "VTTC0801U" if self.is_paper_trading else "TTTC0801U"
+                
+            headers = self._get_common_headers(tr_id)
+            body = {
+                "CANO": self.account_front,
+                "ACNT_PRDT_CD": self.account_back,
+                "PDNO": symbol,
+                "ORD_DVSN": "01" if order_type == "01" else "00", # 00: 지정가, 01: 시장가
+                "ORD_QTY": str(int(qty)),
+                "ORD_UNPR": str(int(price)) if order_type == "00" else "0"
+            }
+        else:
+            # 해외 주식 주문
+            path = "/uapi/overseas-stock/v1/trading/order"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers(tr_id)
+            body = {
+                "CANO": self.account_front,
+                "ACNT_PRDT_CD": self.account_back,
+                "OVRS_EXCG_CD": ovs_excd,
+                "PDNO": symbol,
+                "ORD_QTY": str(int(qty)),
+                "OVRS_ORD_UNPR": str(price), 
+                "ORD_SVR_DVSN_CD": "0",
+                "ORD_DVSN": order_type 
+            }
         
         # 재시도 로직 추가
         max_retries = 3
