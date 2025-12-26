@@ -702,8 +702,8 @@ class TeslaReversalTradingBot:
         # 2. 거래 전략 실행: 매 시간 31분 20초에 실행
         schedule.every().hour.at("31:20").do(self.execute_trading_strategy)
         
-        # 3. 토큰 갱신 체크: 매 시간 25분 00초에 실행 (만료 1시간 전 자동 갱신 보조)
-        schedule.every().hour.at("25:00").do(self.check_token_renewal)
+        # 3. 토큰 갱신 체크: 9시간 마다 25분 00초에 실행 (만료 1시간 전 자동 갱신 보조)
+        schedule.every(9).hours.at(":25").do(self.check_token_renewal)
         
         # 4. 장 시작/종료 메시지 등은 별도 스케줄링 가능하나 일단 생략
         
