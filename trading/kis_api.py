@@ -392,10 +392,19 @@ class KisApi:
 
         ovs_excd = self._guess_exch_code(symbol)
         
+        # 주문용 거래소 코드 매핑 (시세조회용 3자리 -> 주문용 4자리)
+        # NAS -> NASD, AMS -> AMEX, NYS -> NYSE
+        order_exch_map = {
+            "NAS": "NASD",
+            "AMS": "AMEX",
+            "NYS": "NYSE"
+        }
+        order_exch_code = order_exch_map.get(ovs_excd, ovs_excd)
+        
         # 미국 시장(NAS/AMS/NYS 등)은 시장가(01) 주문 시 '주문구분 입력오류'가 발생하는 경우가 많음
         # 따라서 시장가 요청 시 지정가(00) + 현재가(여유가)로 변환하여 전송
         if ovs_excd != "KRX" and order_type == "01":
-            logger.info(f"[{ovs_excd}] 시장가 주문을 지정가(여유가)로 변환합니다. (PaperTrading: {self.is_paper_trading})")
+            logger.info(f"[{order_exch_code}] 시장가 주문을 지정가(여유가)로 변환합니다. (PaperTrading: {self.is_paper_trading})")
             order_type = "00"
             if float(price) <= 0:
                 curr_price = self.get_current_price(symbol)
@@ -406,9 +415,9 @@ class KisApi:
                         price = round(curr_price + 0.01, 2)
                     else:
                         price = round(curr_price - 0.01, 2)
-                    logger.info(f"[{ovs_excd}] 시장가 대체 지정가 (1호가 버퍼): {curr_price} -> {price}")
+                    logger.info(f"[{order_exch_code}] 시장가 대체 지정가 (1호가 버퍼): {curr_price} -> {price}")
                 else:
-                    logger.error(f"[{ovs_excd}] 현재가 조회 실패로 주문을 진행할 수 없습니다.")
+                    logger.error(f"[{order_exch_code}] 현재가 조회 실패로 주문을 진행할 수 없습니다.")
                     return None
         
         if ovs_excd == "KRX":
@@ -441,13 +450,15 @@ class KisApi:
             body = {
                 "CANO": self.account_front,
                 "ACNT_PRDT_CD": self.account_back,
-                "OVRS_EXCG_CD": ovs_excd,
+                "OVRS_EXCG_CD": order_exch_code, # NASD, AMEX 등으로 변경됨
                 "PDNO": symbol,
                 "ORD_QTY": str(int(qty)),
                 "OVRS_ORD_UNPR": str(price), 
                 "ORD_SVR_DVSN_CD": "0",
                 "ORD_DVSN": order_type 
             }
+        
+        logger.debug(f"주문 요청 Body: {body}")
         
         # 재시도 로직 추가
         max_retries = 3
