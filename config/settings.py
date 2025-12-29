@@ -66,6 +66,13 @@ TARGET_SYMBOLS = [
         "LONG_MULTIPLE" : "2",
         "SHORT": "AMDD",     # 1x 숏 ETF: Direxion Daily AMD Bear 1X Shares
         "SHORT_MULTIPLE": "-1"
+    },
+        {
+        "ORIGINAL": "NVDA",  # 원본 주식: Nvidia
+        "LONG": "NVDX",      # 2x 롱 ETF: T-Rex 2X Long Nvidia Daily Target ETF
+        "LONG_MULTIPLE": "2",
+        "SHORT": "NVDQ",      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
+        "SHORT_MULTIPLE": "-2"
     }
 ]
 
