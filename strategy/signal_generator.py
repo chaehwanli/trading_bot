@@ -82,7 +82,7 @@ class SignalGenerator:
                     "reason": "지표 계산 실패"
                 }
             
-            signal, confidence, reason = self._analyze_signals2(
+            signal, confidence, reason = self._analyze_signals(
                 rsi, macd_data, current_position
             )
             
