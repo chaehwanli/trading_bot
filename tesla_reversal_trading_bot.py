@@ -3,7 +3,7 @@ Tesla 전환 매매 전략 실행 봇 (KIS API 버전)
 한국투자증권 OpenAPI를 이용하여 Tesla 및 2x ETF(TSLL/TSLZ) 전환 매매 수행
 """
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 import os
 import pytz
@@ -634,6 +634,17 @@ class TeslaReversalTradingBot:
 
                 target_found = True
                 logger.info(f"기존 포지션 복구: LONG ({symbol}) {qty}주 @ ${purch_avg_price}")
+                
+                # === 강제 청산 날짜 재계산 (복구된 진입시간 기준) ===
+                if self.strategy.entry_time:
+                     target_days = 3 # LONG
+                     
+                     # 1. entry_time에서 날짜만 추출
+                     entry_date = self.strategy.entry_time.date()
+                     # 2. 거래일 계산 함수 호출
+                     self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
+                     logger.info(f"📅 강제 청산 날짜 재설정: {self.forced_close_date} ({target_days} 거래일 후)")
+                
                 break
                 
             elif symbol == self.etf_short:
@@ -665,6 +676,17 @@ class TeslaReversalTradingBot:
 
                 target_found = True
                 logger.info(f"기존 포지션 복구: SHORT ({symbol}) {qty}주 @ ${purch_avg_price}")
+                
+                # === 강제 청산 날짜 재계산 (복구된 진입시간 기준) ===
+                if self.strategy.entry_time:
+                     target_days = 1 # SHORT
+                     
+                     # 1. entry_time에서 날짜만 추출
+                     entry_date = self.strategy.entry_time.date()
+                     # 2. 거래일 계산 함수 호출
+                     self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
+                     logger.info(f"📅 강제 청산 날짜 재설정: {self.forced_close_date} ({target_days} 거래일 후)")
+
                 break
                 
         if not target_found:
