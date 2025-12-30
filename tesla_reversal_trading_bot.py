@@ -12,6 +12,7 @@ import schedule
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.settings import REVERSAL_STRATEGY_PARAMS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, PAPER_TRADING
+from config.holidays import KRX_HOLIDAYS
 from data.data_fetcher import DataFetcher
 from strategy.reversal_strategy import ReversalStrategy
 from strategy.signal_generator import SignalType
@@ -113,16 +114,23 @@ class TeslaReversalTradingBot:
 
     def _calculate_trading_day_limit(self, start_date, days):
         """
-        거래일 기준 날짜 계산 (단순화: 주말 제외)
-        실제 휴장은 고려하지 않으나, 대략적인 거래일 계산
+        거래일 기준 날짜 계산 (주말 + KRX 휴장일 제외)
         """
         current_date = start_date
         added_days = 0
         while added_days < days:
-             current_date += __import__("datetime").timedelta(days=1)
-             # 토(5), 일(6) 제외 (0=월)
-             if current_date.weekday() < 5:
-                 added_days += 1
+             current_date += timedelta(days=1)
+             
+             # 1. 주말 체크: 토(5), 일(6) 제외
+             if current_date.weekday() >= 5:
+                 continue
+                 
+             # 2. 휴장일 체크 (KRX인 경우)
+             if self.exchange == "KRX" and current_date in KRX_HOLIDAYS:
+                 continue
+                 
+             added_days += 1
+             
         return current_date
 
     def _get_market_status(self):
@@ -140,6 +148,10 @@ class TeslaReversalTradingBot:
 
         # --- 한국 주식 (KRX) ---
         if self.exchange == "KRX":
+            # 휴장일 체크
+            if now.date() in KRX_HOLIDAYS:
+                return "CLOSED"
+                
             # 정규장: 09:00 ~ 15:30
             if 540 <= curr_min < 930:
                 return "REGULAR"
