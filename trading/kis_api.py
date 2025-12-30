@@ -57,7 +57,9 @@ class KisApi:
             return self.access_token
 
         # 2. 파일 캐시 확인
-        token_file = "kis_token_paper.json" if self.is_paper_trading else "kis_token_real.json"
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        file_name = "kis_token_paper.json" if self.is_paper_trading else "kis_token_real.json"
+        token_file = os.path.join(root_dir, file_name)
         
         # 파일이 존재하면 읽기 시도
         if os.path.exists(token_file):
@@ -95,10 +97,10 @@ class KisApi:
             data = res.json()
             
             self.access_token = data['access_token']
-            # 토큰 유효기간 설정 (여유있게 1시간 줄임)
+            # 토큰 유효기간 설정 (여유있게 3시간 줄임)
             # KIS 토큰은 보통 24시간 (86400초)
             seconds_left = int(data.get('expires_in', 86400))
-            self.token_expiry = datetime.now() + timedelta(seconds=seconds_left - 3600)
+            self.token_expiry = datetime.now() + timedelta(seconds=seconds_left - 10800)
             
             logger.info("KIS 접근 토큰 발급 성공 & 캐시 저장")
             
@@ -119,15 +121,12 @@ class KisApi:
             return None
             
     def ensure_valid_token(self):
-        """토큰이 유효한지 확인하고 필요시 갱신 (만료 1시간 전)"""
+        """토큰이 유효한지 확인하고 필요시 갱신 (만료 3시간 전)"""
         if not self.access_token or not self.token_expiry or datetime.now() >= self.token_expiry:
             logger.info("토큰 만료 또는 없음 - 발급 진행")
             return self._get_access_token()
         
-        # 만료 1시간 이내인지 확인 (이미 _get_access_token에서 1시간을 뺐으므로 여기서는 여유있게 30분 정도 더 확인하거나 
-        # 사용자의 1시간 전 갱신 요청을 수용하기 위해 명시적으로 계산)
-        # _get_access_token 내부의 self.token_expiry는 이미 (실제만료 - 1시간) 임.
-        # 따라서 현재 시간이 self.token_expiry를 지났다면 이미 실제 만료 1시간 전임.
+        # 만료 3시간 이내인지 확인 (이미 _get_access_token에서 3시간을 뺐으므로 현재 시간이 token_expiry를 지났다면 갱신 필요)
         return self.access_token
 
     def _get_common_headers(self, tr_id):
