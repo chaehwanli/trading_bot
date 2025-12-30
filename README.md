@@ -472,3 +472,5 @@ The different timestamps suggest:
 - KIS API has pagination complexity for historical data
 - Some symbols missing in KIS data (e.g., TSLT, BTCL, NVDX)
 - Timezone handling differs between sources
+
+-
