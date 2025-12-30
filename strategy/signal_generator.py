@@ -125,9 +125,9 @@ class SignalGenerator:
         macd_bearish = macd_line < signal_line and histogram < 0
         
         # RSI 과매수/과매도 확인
-        rsi_oversold = rsi < RSI_OVERSOLD + 10
-        rsi_overbought = rsi > RSI_OVERBOUGHT - 10
-        rsi_neutral = RSI_OVERSOLD <= rsi <= RSI_OVERBOUGHT
+        rsi_oversold = rsi < (RSI_OVERSOLD + 10)
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = (RSI_OVERSOLD + 10) <= rsi <= (RSI_OVERBOUGHT - 10)
         
         # 현재 포지션이 없는 경우
         if current_position is None:
