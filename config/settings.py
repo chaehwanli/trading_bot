@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# ========== 거래소 선택 ==========
+# KIS: 한국투자증권 (기본값)
+# KIWOOM: 키움증권 (Relay Server 필요)
+BROKER_TYPE = os.getenv("BROKER_TYPE", "KIS")
+
 # KIS (한국투자증권) 실전투자 API 설정
 KIS_REAL_APP_KEY = os.getenv("KIS_API_KEY", "")
 KIS_REAL_APP_SECRET = os.getenv("KIS_API_SECRET", "")
@@ -18,6 +23,10 @@ KIS_PAPER_APP_KEY = os.getenv("KIS_PAPER_API_KEY", "")
 KIS_PAPER_APP_SECRET = os.getenv("KIS_PAPER_API_SECRET", "")
 KIS_PAPER_ACCOUNT_NO = os.getenv("KIS_PAPER_CANO", "")
 KIS_PAPER_BASE_URL = os.getenv("KIS_PAPER_BASE_URL", "https://openapivts.koreainvestment.com:29443")
+
+# Kiwoom (키움증권) 설정
+KIWOOM_SERVER_URL = os.getenv("KIWOOM_SERVER_URL", "http://localhost:5000")
+KIWOOM_ACCOUNT_NO = os.getenv("KIWOOM_ACCOUNT_NO", "")
 
 # 하위 호환성을 위한 기본값 (KisApi에서 분기 처리 권장)
 KIS_APP_KEY = KIS_REAL_APP_KEY
@@ -73,6 +82,13 @@ TARGET_SYMBOLS = [
         "LONG_MULTIPLE": "2",
         "SHORT": "NVDQ",      # 2x 숏 ETF: T-Rex 2X Inverse Nvidia Daily Target ETF
         "SHORT_MULTIPLE": "-2"
+    },
+    {
+        "ORIGINAL": "NFLX",# 원본 주식: Netflix
+        "LONG": "NFXL",  # 2x 롱 ETF: Direxion Daily NFLX Bull 2X Shares
+        "LONG_MULTIPLE" : "2",
+        "SHORT": "NFXS",     # 1x 숏 ETF: Direxion Daily NFLX Bear 1X Shares
+        "SHORT_MULTIPLE": "-1"  
     }
 ]
 

@@ -4,17 +4,20 @@ import time
 from datetime import datetime, timedelta
 import os
 import sys
+from typing import Optional, Dict
 
-# 프로젝트 루트 경로 추가
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 프로젝트 루트 경로 추가 (trading/brokers/kis.py -> trading/brokers -> trading -> root)
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(root_dir)
 
 from config.settings import (
     KIS_REAL_APP_KEY, KIS_REAL_APP_SECRET, KIS_REAL_ACCOUNT_NO, KIS_REAL_BASE_URL,
     KIS_PAPER_APP_KEY, KIS_PAPER_APP_SECRET, KIS_PAPER_ACCOUNT_NO, KIS_PAPER_BASE_URL
 )
 from utils.logger import logger
+from trading.brokers.base import BaseBroker
 
-class KisApi:
+class KisBroker(BaseBroker):
     """한국투자증권 OpenAPI 래퍼 클래스"""
     
     def __init__(self, is_paper_trading=False):
@@ -57,7 +60,7 @@ class KisApi:
             return self.access_token
 
         # 2. 파일 캐시 확인
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # root_dir은 상단에서 정의됨
         file_name = "kis_token_paper.json" if self.is_paper_trading else "kis_token_real.json"
         token_file = os.path.join(root_dir, file_name)
         
@@ -153,7 +156,7 @@ class KisApi:
             return "AMS"
         return "NAS"
 
-    def get_current_price(self, symbol: str):
+    def get_current_price(self, symbol: str) -> Optional[float]:
         """현재가 상세 조회 (국내/해외 분기)"""
         exch_code = self._guess_exch_code(symbol)
         
@@ -362,7 +365,7 @@ class KisApi:
                 return None
         return None
 
-    def get_balance(self):
+    def get_balance(self) -> float:
         """(Legacy) 해외주식 체결기준 잔고 - 예수금만 반환하는 구 메서드"""
         balance_data = self.get_overseas_stock_balance()
         if balance_data and 'assets' in balance_data:
@@ -376,9 +379,8 @@ class KisApi:
                 return 100000.0
         return 100000.0 
 
-    def place_order(self, symbol, side, qty, price=0, order_type="00"):
+    def place_order(self, symbol: str, side: str, qty: float, price: float = 0, order_type: str = "00") -> Optional[Dict]:
         """해외주식 주문"""
-        # (기존 코드 유지, is_paper_trading 속성 사용하도록 수정)
         
         tr_id = ""
         # 실전: JTTT1002U / JTTT1006U (미국)

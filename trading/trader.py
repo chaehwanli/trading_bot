@@ -24,7 +24,10 @@ class Trader:
         self.dry_run = DRY_RUN
         
         # 실제 API 연결은 여기서 초기화
-        # 예: self.api = alpaca.REST(API_KEY, API_SECRET, BASE_URL)
+        from trading.brokers.factory import get_broker
+        self.broker = get_broker()
+        self.broker.ensure_valid_token()
+        
         logger.info(f"Trader 초기화: 자본 ${self.capital:.2f}, DRY_RUN={self.dry_run}")
     
     def get_account_balance(self) -> float:
@@ -33,9 +36,13 @@ class Trader:
             return self.available_capital
         
         # 실제 API 호출
-        # account = self.api.get_account()
-        # return float(account.cash)
-        return self.available_capital
+        try:
+             # 브로커를 통해 잔고(예수금) 조회
+            balance = self.broker.get_balance()
+            return float(balance)
+        except Exception as e:
+            logger.error(f"잔고 조회 실패: {e}")
+            return self.available_capital
     
     def calculate_position_size(
         self,
@@ -101,10 +108,8 @@ class Trader:
                 # 모의 거래
                 logger.info(f"[DRY RUN] 주문: {side} {quantity} {symbol}")
                 
-                # 현재가 조회 (실제로는 API에서 가져옴)
-                from data.data_fetcher import DataFetcher
-                fetcher = DataFetcher()
-                current_price = fetcher.get_realtime_price(symbol)
+                # 현재가 조회 (브로커 사용)
+                current_price = self.broker.get_current_price(symbol)
                 
                 if current_price is None:
                     logger.error(f"{symbol} 가격 조회 실패")
@@ -120,24 +125,23 @@ class Trader:
                 }
             
             # 실제 주문 실행
-            # order = self.api.submit_order(
-            #     symbol=symbol,
-            #     qty=quantity,
-            #     side=side.lower(),
-            #     type=order_type.lower(),
-            #     time_in_force="day"
-            # )
-            # 
-            # return {
-            #     "order_id": order.id,
-            #     "symbol": symbol,
-            #     "side": side,
-            #     "quantity": quantity,
-            #     "filled_price": order.filled_avg_price,
-            #     "status": order.status
-            # }
+            # order_type 01(시장가) or 00(지정가). 기본값 "MARKET"이면 "01"로 변환
+            kis_order_type = "01" if order_type == "MARKET" else "00"
             
-            logger.warning("실제 거래 API 미구현")
+            result = self.broker.place_order(symbol, side, quantity, order_type=kis_order_type)
+            
+            if result:
+                 # API 결과 표준화 (브로커마다 다를 수 있으므로 여기서 처리하거나 브로커 내부에서 처리)
+                 # 여기서는 KIS/Kiwoom 모두 dict 리턴한다고 가정
+                 return {
+                    "order_id": result.get("ODNO", "Unknown"), # KIS 기준
+                    "symbol": result.get("PDNO", symbol),
+                    "side": side,
+                    "quantity": quantity,
+                    "filled_price": 0, # 주문 접수 시점엔 미확정
+                    "status": "SUBMITTED"
+                }
+
             return None
             
         except Exception as e:
