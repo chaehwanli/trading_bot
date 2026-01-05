@@ -716,9 +716,28 @@ class TeslaReversalTradingBot:
             # 다만 로컬상태에는 포지션이 있는데 계좌에는 없는 경우 강력한 경고를 발생시켜 확인 유도.
             if saved_state and saved_state.get('current_position'):
                 logger.warning(
-                    f"⚠️ 경고: 로컬 상태에는 {saved_state.get('current_position')} 포지션이 있으나 "
-                    f"실제 계좌에서는 조회되지 않습니다. 수동 확인이 필요합니다."
+                    f"⚠️ 포지션 불일치 감지: 로컬 상태({saved_state.get('current_position')}) vs 계좌(없음). "
+                    f"외부 청산으로 간주하여 로컬 상태를 초기화합니다."
                 )
+                
+                # 로컬 상태 초기화
+                self.strategy.current_position = None
+                self.strategy.current_etf_symbol = None
+                self.strategy.entry_price = None
+                self.strategy.entry_time = None
+                self.strategy.entry_quantity = None
+                self.forced_close_date = None
+                
+                # 초기화된 상태 저장
+                self.state_manager.save_state({
+                    "current_position": None,
+                    "current_etf_symbol": None,
+                    "entry_price": None,
+                    "entry_time": None,
+                    "entry_quantity": None,
+                    "capital": self.strategy.capital
+                })
+                logger.info("✅ 로컬 포지션 상태 초기화 완료")
 
     def check_token_renewal(self):
         """KIS API 토큰 갱신 체크"""
