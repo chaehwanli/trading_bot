@@ -73,6 +73,14 @@ class TeslaReversalTradingBot:
                 self.strategy.entry_quantity = saved_state.get('entry_quantity')
                 self.strategy.entry_time = saved_state.get('entry_time')
                 logger.info(f"💾 저장된 포지션 상태 복원: {self.strategy.current_position} ({self.strategy.current_etf_symbol})")
+                
+                # 강제 청산 날짜 재계산 (저장된 상태 기반)
+                if self.strategy.entry_time and self.strategy.current_position:
+                    target_days = 3 if self.strategy.current_position == "LONG" else 1
+                    # entry_time은 state_manager에서 datetime으로 변환됨
+                    entry_date = self.strategy.entry_time.date()
+                    self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
+                    logger.info(f"💾 저장된 상태 기반 강제 청산 날짜 복원: {self.forced_close_date}")
         
         self.scheduler = TradingScheduler()
         
