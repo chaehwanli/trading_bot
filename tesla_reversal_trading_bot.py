@@ -58,6 +58,13 @@ class TeslaReversalTradingBot:
         
         # 전략 초기화
         self.strategy = ReversalStrategy(params=params)
+
+        # === 거래소별 시장 시간대 설정 (먼저 설정해야 _calculate_trading_day_limit 사용 가능) ===
+        self.exchange = self.kis._guess_exch_code(self.original_symbol)
+        if self.exchange == "KRX":
+            self.market_timezone = pytz.timezone("Asia/Seoul")
+        else:
+            self.market_timezone = pytz.timezone("US/Eastern")
         
         # [State Persistence] 저장된 상태가 있으면 복원 (자본금 및 포지션 정보)
         saved_state = self.state_manager.load_state()
@@ -89,13 +96,7 @@ class TeslaReversalTradingBot:
         self.notifier = TelegramNotifier(token=TELEGRAM_BOT_TOKEN, chat_id=TELEGRAM_CHAT_ID, prefix=prefix)
         self.timezone = pytz.timezone("Asia/Seoul")
         
-        # === 거래소별 시장 시간대 설정 ===
-        self.exchange = self.kis._guess_exch_code(self.original_symbol)
-        if self.exchange == "KRX":
-            self.market_timezone = pytz.timezone("Asia/Seoul")
-        else:
-            self.market_timezone = pytz.timezone("US/Eastern")
-            
+        
         self.is_running = False
         
         # 쿨다운 상태 (날짜 기준)
