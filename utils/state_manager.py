@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date
 from utils.logger import logger
 
 STATE_FILE = "bot_state.json"
@@ -17,7 +17,7 @@ class TradeStateManager:
             # datetime 객체 직렬화 처리
             serializable_data = {}
             for k, v in state_data.items():
-                if isinstance(v, datetime):
+                if isinstance(v, (datetime, date)):
                     serializable_data[k] = v.isoformat()
                 else:
                     serializable_data[k] = v
@@ -44,6 +44,18 @@ class TradeStateManager:
                     data['entry_time'] = datetime.fromisoformat(data['entry_time'])
                 except ValueError:
                     pass # 문자열 그대로 유지
+
+            # date 복원 (force_close_date)
+            if 'force_close_date' in data and data['force_close_date']:
+                try:
+                    data['force_close_date'] = datetime.fromisoformat(data['force_close_date']).date()
+                except ValueError:
+                    # ISO format YYYY-MM-DD might be parsed by fromisoformat as date or datetime depending on python version
+                    # simpler:
+                    try: 
+                        data['force_close_date'] = datetime.strptime(data['force_close_date'], "%Y-%m-%d").date()
+                    except:
+                        pass
                     
             return data
         except Exception as e:

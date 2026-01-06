@@ -88,6 +88,17 @@ class TeslaReversalTradingBot:
                     entry_date = self.strategy.entry_time.date()
                     self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                     logger.info(f"💾 저장된 상태 기반 강제 청산 날짜 복원: {self.forced_close_date}")
+                    
+                    # [State Persistence] 초기화 시 계산된 날짜 저장 (누락 방지)
+                    self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date
+                    })
         
         self.scheduler = TradingScheduler()
         
@@ -241,16 +252,27 @@ class TeslaReversalTradingBot:
                 # 시장 날짜 기준으로 비교
                 market_date = datetime.now(self.market_timezone).date()
                 if market_date >= self.forced_close_date:
-                    self._close_position(current_price, "FORCE_CLOSE_TRADING_DAY_LIMIT")
-                    
-                    # === FORCE_CLOSE 후 처리 ===
-                    # 1. 이익이면 연속 손절 카운트 리셋 (기존 로직)
-                    if self.strategy.trade_history:
-                        last_trade = self.strategy.trade_history[-1]
-                        if last_trade['pnl'] > 0:
-                            self.strategy.consecutive_stop_losses = 0
-                            self.strategy.stop_loss_cooldown_until = None
-                            logger.info("✅ FORCE_CLOSE 이익 실현으로 연속 손절 카운트 초기화")
+                    # [Request] 거래 가능한 시간인지 확인
+                    market_status = self._get_market_status()
+                    # 정규장만 허용 (필요시 PRE/AFTER 추가 가능하나 안전하게 정규장 권장)
+                    allowed_statuses = ["REGULAR"]
+                    # 모의투자는 유연하게
+                    if self.kis.is_paper_trading:
+                        allowed_statuses.extend(["PREMARKET", "AFTERMARKET", "daytime"])
+
+                    if market_status in allowed_statuses:
+                        self._close_position(current_price, "FORCE_CLOSE_TRADING_DAY_LIMIT")
+                        
+                        # === FORCE_CLOSE 후 처리 ===
+                        # 1. 이익이면 연속 손절 카운트 리셋 (기존 로직)
+                        if self.strategy.trade_history:
+                            last_trade = self.strategy.trade_history[-1]
+                            if last_trade['pnl'] > 0:
+                                self.strategy.consecutive_stop_losses = 0
+                                self.strategy.stop_loss_cooldown_until = None
+                                logger.info("✅ FORCE_CLOSE 이익 실현으로 연속 손절 카운트 초기화")
+                    else:
+                        logger.info(f"⏳ 강제 청산 날짜 도달 ({self.forced_close_date})했으나 비거래 시간 ({market_status}) - 대기")
             
             # 최대 자본 손실률 확인
             if self.strategy.check_max_drawdown(current_price):
@@ -356,7 +378,8 @@ class TeslaReversalTradingBot:
                     "entry_price": self.strategy.entry_price,
                     "entry_time": self.strategy.entry_time,
                     "entry_quantity": self.strategy.entry_quantity,
-                    "capital": self.strategy.capital
+                    "capital": self.strategy.capital,
+                    "force_close_date": self.forced_close_date
                 })
                 
                 # === 강제 청산 날짜 설정 ===
@@ -446,7 +469,8 @@ class TeslaReversalTradingBot:
             "entry_price": None,
             "entry_time": None,
             "entry_quantity": None,
-            "capital": self.strategy.capital
+            "capital": self.strategy.capital,
+            "force_close_date": None
         })
     
     def execute_trading_strategy(self):
@@ -532,7 +556,8 @@ class TeslaReversalTradingBot:
                                     "entry_price": self.strategy.entry_price,
                                     "entry_time": self.strategy.entry_time,
                                     "entry_quantity": self.strategy.entry_quantity,
-                                    "capital": self.strategy.capital
+                                    "capital": self.strategy.capital,
+                                    "force_close_date": self.forced_close_date
                                 })
                                 
                                 # === 강제 청산 날짜 설정 ===
@@ -650,14 +675,19 @@ class TeslaReversalTradingBot:
                         "entry_price": self.strategy.entry_price,
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
-                        "capital": self.strategy.capital
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date
                     })
 
                 target_found = True
                 logger.info(f"기존 포지션 복구: LONG ({symbol}) {qty}주 @ ${purch_avg_price}")
                 
                 # === 강제 청산 날짜 재계산 (복구된 진입시간 기준) ===
-                if self.strategy.entry_time:
+                # 저장된 강제 청산 날짜가 있으면 우선 사용
+                if saved_state and saved_state.get('force_close_date'):
+                    self.forced_close_date = saved_state['force_close_date']
+                    logger.info(f"💾 저장된 강제 청산 날짜 복원: {self.forced_close_date}")
+                elif self.strategy.entry_time:
                      target_days = 3 # LONG
                      
                      # 1. entry_time에서 날짜만 추출
@@ -665,6 +695,17 @@ class TeslaReversalTradingBot:
                      # 2. 거래일 계산 함수 호출
                      self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                      logger.info(f"📅 강제 청산 날짜 재설정: {self.forced_close_date} ({target_days} 거래일 후)")
+                     
+                     # [State Persistence] 재계산된 날짜 저장을 위해 강제 업데이트
+                     self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date
+                    })
                 
                 break
                 
@@ -692,14 +733,19 @@ class TeslaReversalTradingBot:
                         "entry_price": self.strategy.entry_price,
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
-                        "capital": self.strategy.capital
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date
                     })
 
                 target_found = True
                 logger.info(f"기존 포지션 복구: SHORT ({symbol}) {qty}주 @ ${purch_avg_price}")
                 
                 # === 강제 청산 날짜 재계산 (복구된 진입시간 기준) ===
-                if self.strategy.entry_time:
+                # 저장된 강제 청산 날짜가 있으면 우선 사용
+                if saved_state and saved_state.get('force_close_date'):
+                    self.forced_close_date = saved_state['force_close_date']
+                    logger.info(f"💾 저장된 강제 청산 날짜 복원: {self.forced_close_date}")
+                elif self.strategy.entry_time:
                      target_days = 1 # SHORT
                      
                      # 1. entry_time에서 날짜만 추출
@@ -707,6 +753,17 @@ class TeslaReversalTradingBot:
                      # 2. 거래일 계산 함수 호출
                      self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                      logger.info(f"📅 강제 청산 날짜 재설정: {self.forced_close_date} ({target_days} 거래일 후)")
+                     
+                     # [State Persistence] 재계산된 날짜 저장을 위해 강제 업데이트
+                     self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date
+                    })
 
                 break
                 
