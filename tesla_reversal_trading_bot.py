@@ -44,6 +44,9 @@ class TeslaReversalTradingBot:
         self.etf_long_multiple = self.target_config["LONG_MULTIPLE"]
         self.etf_short = self.target_config["SHORT"]
         self.etf_short_multiple = self.target_config["SHORT_MULTIPLE"]
+        
+        # 강제청산 날짜 (거래일 기준) - 초기화
+        self.forced_close_date = None
 
         self.kis = KisApi(is_paper_trading=is_paper_trading)
         # 만약 모의투자로 하려면 is_paper_trading=True 로 변경하거나 env 변수 활용
@@ -108,14 +111,14 @@ class TeslaReversalTradingBot:
         self.timezone = pytz.timezone("Asia/Seoul")
         
         
+        
         self.is_running = False
         
         # 쿨다운 상태 (날짜 기준)
         self.cooldown_until_date = None
-        # 강제청산 날짜 (거래일 기준)
-        self.forced_close_date = None
         
         logger.info(f"Tesla 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
+        logger.info(f"Bot Source File: {os.path.abspath(__file__)}") # Verify running path
         
         # 텔레그램으로도 초기화 알림 전송
         mode_str = "모의 투자" if is_paper_trading else "실전 투자"
@@ -405,12 +408,23 @@ class TeslaReversalTradingBot:
         # KIS 주문
         symbol = self.strategy.current_etf_symbol
         qty = self.strategy.entry_quantity
-        logger.info(f"[KIS] 청산 주문: {symbol} {qty}주 ({reason})")
         
-        res = self.kis.place_order(symbol, "SELL", qty, price=0, order_type="01") # 시장가
-        if not res:
-            logger.error("청산 주문 실패")
-            self.notifier.send_error_alert(f"청산 주문 실패: {symbol}")
+        success = False
+        for i in range(3):
+            logger.info(f"[KIS] 청산 주문 시도 ({i+1}/3): {symbol} {qty}주 ({reason})")
+            res = self.kis.place_order(symbol, "SELL", qty, price=0, order_type="01") # 시장가
+            
+            if res:
+                success = True
+                break
+            
+            logger.warning(f"청산 주문 실패 ({i+1}/3), 1초 후 재시도...")
+            time.sleep(1)
+            
+        if not success:
+            logger.error("청산 주문 최종 실패 (3회 시도)")
+            # 실패해도 계속 진행할지 여부 결정 필요하나, 일단 에러 알림 보내고 중단
+            self.notifier.send_error_alert(f"청산 주문 최종 실패: {symbol}")
             return
         
         # 청산 알림 전송
@@ -492,8 +506,18 @@ class TeslaReversalTradingBot:
             
             # 이미 포지션이 있으면 스킵
             if self.strategy.current_position:
-                logger.info(f"이미 포지션 보유 중: {self.strategy.current_etf_symbol} {self.strategy.current_position}")
-                return
+                # [Request] 이미 포지션이 있어도, 강제 청산 날짜가 지났으면 모니터링 로직 태워서 청산 시도
+                if self.forced_close_date:
+                    market_date = datetime.now(self.market_timezone).date()
+                    
+                    if market_date >= self.forced_close_date:
+                            logger.info(f"⏳ 강제 청산 날짜 도달 ({self.forced_close_date}) -> 모니터링(청산로직) 실행")
+                            self.monitor_position()
+
+                # 청산 후 포지션이 없어졌는지 재확인
+                if self.strategy.current_position:
+                    logger.info(f"이미 포지션 보유 중: {self.strategy.current_etf_symbol} {self.strategy.current_position}")
+                    return
             
             try:
                 # 원본 주식 데이터 수집 (지표용)
