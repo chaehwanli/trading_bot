@@ -319,7 +319,7 @@ class TeslaReversalTradingBot:
                 close_symbol = self.strategy.current_etf_symbol
                 close_qty = self.strategy.entry_quantity
                 # 매도 주문
-                logger.info(f"[KIS] 청산 주문 실행: {close_symbol} {close_qty}주")
+                logger.info(f"[KIS] 청산 주문 실행: {close_symbol} {int(close_qty)}주")
                 # 시장가 매도 가정 (또는 현재가 지정가)
                 self.kis.place_order(close_symbol, "SELL", close_qty, etf_long_price if ... else ...)
                 # 여기서 close_qty가 0이 아니라고 가정.
@@ -350,7 +350,7 @@ class TeslaReversalTradingBot:
             if result:
                 # 3. 신규 진입 주문
                 new_symbol = result['to_etf']
-                new_qty = result['quantity']
+                new_qty = int(result['quantity'])
                 # 매수 주문
                 logger.info(f"[KIS] 진입 주문 실행: {new_symbol} {new_qty}주")
                 res = self.kis.place_order(new_symbol, "BUY", new_qty, price=0, order_type="01") # 시장가
@@ -407,7 +407,8 @@ class TeslaReversalTradingBot:
         
         # KIS 주문
         symbol = self.strategy.current_etf_symbol
-        qty = self.strategy.entry_quantity
+        qty = int(self.strategy.entry_quantity)
+        logger.info(f"[KIS] 청산 주문: {symbol} {qty}주 ({reason})")
         
         success = False
         for i in range(3):
@@ -560,7 +561,7 @@ class TeslaReversalTradingBot:
                         quantity = self.strategy.calculate_position_size(etf_price, is_reversal=False)
                         if quantity > 0:
                             # KIS 주문
-                            logger.info(f"[KIS] 진입 주문: {target_etf} {quantity}주")
+                            logger.info(f"[KIS] 진입 주문: {target_etf} {int(quantity)}주")
                             res = self.kis.place_order(target_etf, "BUY", quantity, price=0, order_type="01") # 시장가
                             
                             if res:
@@ -592,7 +593,7 @@ class TeslaReversalTradingBot:
                                 logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
                                 
                                 logger.info(
-                                    f"{position_side} 포지션 진입: {target_etf} @ ${etf_price:.2f} x {quantity:.2f} "
+                                    f"{position_side} 포지션 진입: {target_etf} @ ${etf_price:.2f} x {int(quantity)} "
                                     f"(신뢰도: {confidence:.2f})"
                                 )
                                 action_result = f"진입 성공 ({target_etf})"
