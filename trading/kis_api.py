@@ -363,18 +363,22 @@ class KisApi:
         return None
 
     def get_balance(self):
-        """(Legacy) 해외주식 체결기준 잔고 - 예수금만 반환하는 구 메서드"""
+        """해외주식 체결기준 잔고 - USD 예수금(외화예수금) 반환"""
         balance_data = self.get_overseas_stock_balance()
         if balance_data and 'assets' in balance_data:
-            # 실전/모의 키값이 다를 수 있으니 확인 필요하나, 보통 frcr_dncl_amt_2(외화예수금) 등 사용
-            # 여기서는 편의상 output2의 첫번째 값 or 특정 키 사용.
-            # 모의투자 문서 기준: 'frcr_dncl_amt_2' (외화예수금)
+            assets = balance_data['assets']
+            # 모의투자/실전투자에서 다양한 키로 외화예수금이 제공됨
+            # frcr_dncl_amt_2: 외화예수금 (가장 일반적)
+            # frcr_buy_amt_smtl2: 해외주식매수금액합계 (모의투자 등에서 예수금 대용으로 보일 때가 있음)
+            # 여기서는 frcr_dncl_amt_2를 우선하고 없으면 다른 키 시도
             try:
-                # 안전하게 0으로 리턴하거나, 실제 파싱 로직 구현
-                return float(balance_data['assets'].get('frcr_dncl_amt_2', 100000.0))
+                val = assets.get('frcr_dncl_amt_2') or assets.get('frcr_buy_amt_smtl2') or assets.get('tot_evlu_pfls_amt')
+                if val:
+                    return float(val)
+                return 0.0
             except:
-                return 100000.0
-        return 100000.0 
+                return 0.0
+        return 0.0 
 
     def place_order(self, symbol, side, qty, price=0, order_type="00"):
         """해외주식 주문"""
@@ -473,7 +477,7 @@ class KisApi:
                 if data['rt_cd'] != '0':
                     msg = data['msg1']
                     # 초당 거래건수 초과 메시지 확인 (정확한 메시지는 "초당 거래건수를 초과" 포함)
-                    if "초과" in msg and i < max_retries - 1:
+                    if "초당 거래건수" in msg and i < max_retries - 1:
                         logger.warning(f"주문 실패 (Rate Limit), retrying {i+1}/{max_retries}... Msg: {msg}")
                         time.sleep(0.5 * (i+1)) # 지연 시간 증가
                         continue

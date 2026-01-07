@@ -649,12 +649,18 @@ class TeslaReversalTradingBot:
         # 저장된 상태 로드 시도
         saved_state = self.state_manager.load_state()
         
-        # 1. 자본금 동기화 (초기값 유지 + PnL 누적)
-        if saved_state and 'capital' in saved_state:
+        # 1. 자본금 동기화 (실제 계좌 잔고 우선)
+        # KIS 외화 예수금 조회
+        actual_balance = self.kis.get_balance()
+        if actual_balance > 0:
+            previous_capital = self.strategy.capital
+            # 전략 자본금을 실제 잔고로 업데이트 (안전하게 실제 잔고 사용)
+            self.strategy.capital = actual_balance
+            logger.info(f"💰 자본금 동기화: ${previous_capital:.2f} -> ${self.strategy.capital:.2f} (Actual Balance)")
+        elif saved_state and 'capital' in saved_state:
             self.strategy.capital = float(saved_state['capital'])
             logger.info(f"💰 자본금 복원 (상태파일): ${self.strategy.capital:.2f}")
         else:
-            # 상태 파일이 없는 경우, 현재 포지션 평가를 통해 추정 가능하나 단순 초기값 유지
             logger.info(f"💰 자본금 유지 (초기값): ${self.strategy.capital:.2f}")
         
         # 2. 보유 종목 확인 (TSLL / TSLS)

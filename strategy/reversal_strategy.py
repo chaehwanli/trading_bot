@@ -282,8 +282,8 @@ class ReversalStrategy:
         take_profit_rate = self.params.get("take_profit_rate", 0.08)
         trade_amount = expected_profit / take_profit_rate
         
-        # 사용 가능 자본 제한
-        trade_amount = min(trade_amount, available_capital * 0.95)
+        # 사용 가능 자본 제한 (수수료 및 가격 변동 대비 버퍼 92%로 하향 조정)
+        trade_amount = min(trade_amount, available_capital * 0.92)
         
         if trade_amount < 100:  # 최소 거래 금액
             return 0.0
