@@ -289,7 +289,7 @@ class ReversalStrategy:
             return 0.0
         
         quantity = trade_amount / price
-        return round(quantity, 2)
+        return int(quantity)
     
     def execute_reversal(
         self,
