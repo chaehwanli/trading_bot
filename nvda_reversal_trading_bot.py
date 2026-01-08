@@ -22,8 +22,8 @@ from utils.scheduler import TradingScheduler
 from trading.kis_api import KisApi
 from utils.state_manager import TradeStateManager
 
-class TeslaReversalTradingBot:
-    """Tesla 전환 매매 전략 거래 봇 (KIS 연동)"""
+class NvdaReversalTradingBot:
+    """Nvidia 전환 매매 전략 거래 봇 (KIS 연동)"""
     
     def __init__(self, params: dict = None, is_paper_trading: bool = True):
         """
@@ -874,5 +874,5 @@ if __name__ == "__main__":
     custom_params = REVERSAL_STRATEGY_PARAMS.copy()
     custom_params["symbol"] = "NVDA"
     
-    bot = TeslaReversalTradingBot(params=custom_params, is_paper_trading=PAPER_TRADING)
+    bot = NvdaReversalTradingBot(params=custom_params, is_paper_trading=PAPER_TRADING)
     bot.run()
