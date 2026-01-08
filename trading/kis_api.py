@@ -176,7 +176,9 @@ class KisApi:
                 "EXCD": exch_code,
                 "SYMB": symbol
             }
-        
+    
+        logger.debug(f"[API] get_current_price Request - URL: {url}, Params: {params}")
+
         # 재시도 로직 추가 (500 에러 대응)
         max_retries = 3
         for i in range(max_retries):
@@ -329,6 +331,8 @@ class KisApi:
             "CTX_AREA_NK200": ""
         }
         
+        logger.debug(f"[API] get_overseas_stock_balance Request - tr_id: {tr_id}, URL: {url}, Params: {params}")
+        
         # 재시도 로직 추가
         max_retries = 3
         for i in range(max_retries):
@@ -339,6 +343,7 @@ class KisApi:
                 
                 if res.status_code == 500:
                     logger.warning(f"잔고 조회 500 Error, retrying {i+1}/{max_retries}...")
+                    logger.debug(f"[API] get_overseas_stock_balance Response - Data: {res.json()}")
                     continue
                     
                 res.raise_for_status()
@@ -350,6 +355,8 @@ class KisApi:
                     
                 # output1: 잔고 상세 (보유 종목 리스트)
                 # output2: 계좌 자산 현황
+                logger.debug(f"[API] get_overseas_stock_balance Response - Data: {data}")
+
                 return {
                     "holdings": data['output1'],
                     "assets": data['output2']
@@ -362,22 +369,96 @@ class KisApi:
                 return None
         return None
 
+    def get_overseas_trades(self):
+        """체결 내역 확인 (즉시 반영)"""
+        path = "/uapi/overseas-stock/v1/trading/inquire-ccnl"
+        url = f"{self.base_url}{path}"
+        
+        # 실전: TTTT3012R / 모의: VTTT3012R
+        tr_id = "VTTS3035R" if self.is_paper_trading else "TTTS3035R"
+        
+        headers = self._get_common_headers(tr_id)
+        
+        params = {
+            "CANO": self.account_front,
+            "ACNT_PRDT_CD": self.account_back,
+            "OVRS_EXCG_CD": "NAS", # 거래소 코드 (NAS/AMS 등, 대표값 사용)
+            "TR_CRCY_CD": "USD",
+            "PDNO": "TSLS",
+            "ORD_DT": "20260108",
+            "ORD_STRT_DT": "20260101",  # ✅ 조회 시작일자
+            "ORD_END_DT": "20260108",     # ✅ 조회 종료일자
+            "INQR_DVSN": "01",          # ✅ 기간 조회 모드
+            "SLL_BUY_DVSN": "00",
+            "CCLD_NCCS_DVSN": "00",
+            "SORT_SQN": "DS", 
+            "ORD_GNO_BRNO": "000", 
+            "ODNO": "0000000000",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": "",
+            "CTX_AREA_FK200": "",
+            "CTX_AREA_NK200": ""
+        }
+        
+        logger.debug(f"[API] get_overseas_trades Request - tr_id: {tr_id}, URL: {url}, Params: {params}")
+        
+        # 재시도 로직 추가
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                if i > 0: time.sleep(1)
+                
+                res = requests.get(url, headers=headers, params=params)
+                
+                if res.status_code == 500:
+                    logger.warning(f"체결 내역 확인 500 Error, retrying {i+1}/{max_retries}...")
+                    continue
+                    
+                res.raise_for_status()
+                data = res.json()
+                
+                if data['rt_cd'] != '0':
+                    logger.error(f"체결 내역 확인 실패: {data['msg1']}")
+                    return None
+                    
+                #{
+                #    "rt_cd": "0",
+                #    "msg_cd": "00000",
+                #    "msg1": "정상처리되었습니다.",
+                #    "output": [
+                #        {
+                #            "ovrs_pdno": "TSLS",
+                #            "ord_dvsn_name": "매수",
+                #            "ovrs_ccld_qty": "1",
+                #            "frcr_ccld_amt": "5.33"
+                #        }
+                #    ]
+                #}
+                logger.debug(f"[API] get_overseas_trades Response - Data: {data}")
+
+                return {
+                    "output": data.get("output", [])
+                }
+                
+            except Exception as e:
+                logger.error(f"API 호출 오류 (get_overseas_trades): {e}")
+                if i < max_retries - 1:
+                    continue
+                return None
+        return None
+
     def get_balance(self):
-        """해외주식 체결기준 잔고 - USD 예수금(외화예수금) 반환"""
+        """해외주식 USD 예수금 조회 (get_overseas_stock_balance -> frcr_dncl_amt_2)"""
+        # KIS OpenAPI 공식 가이드: frcr_dncl_amt_2 사용
         balance_data = self.get_overseas_stock_balance()
         if balance_data and 'assets' in balance_data:
             assets = balance_data['assets']
-            # 모의투자/실전투자에서 다양한 키로 외화예수금이 제공됨
-            # frcr_dncl_amt_2: 외화예수금 (가장 일반적)
-            # frcr_buy_amt_smtl2: 해외주식매수금액합계 (모의투자 등에서 예수금 대용으로 보일 때가 있음)
-            # 여기서는 frcr_dncl_amt_2를 우선하고 없으면 다른 키 시도
             try:
-                val = assets.get('frcr_dncl_amt_2') or assets.get('frcr_buy_amt_smtl2') or assets.get('tot_evlu_pfls_amt')
+                val = assets.get('frcr_dncl_amt_2')
                 if val:
                     return float(val)
-                return 0.0
             except:
-                return 0.0
+                pass
         return 0.0 
 
     def place_order(self, symbol, side, qty, price=0, order_type="00"):
@@ -469,6 +550,8 @@ class KisApi:
             try:
                 # Rate Limit 등을 고려한 미세 지연 (기본)
                 if i > 0: time.sleep(1) 
+
+                logger.debug(f"[API] place_order Request - URL: {url}, Body: {json.dumps(body)}")
                 
                 res = requests.post(url, headers=headers, data=json.dumps(body))
                 data = res.json()
