@@ -117,13 +117,13 @@ class NvdaReversalTradingBot:
         # 쿨다운 상태 (날짜 기준)
         self.cooldown_until_date = None
         
-        logger.info(f"Tesla 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
+        logger.info(f"Nvidia 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
         logger.info(f"Bot Source File: {os.path.abspath(__file__)}") # Verify running path
         
         # 텔레그램으로도 초기화 알림 전송
         mode_str = "모의 투자" if is_paper_trading else "실전 투자"
         self.notifier.send_message(
-            f"🚀 <b>Tesla 전환 매매 봇 초기화 ({mode_str})</b>\n\n"
+            f"🚀 <b>Nvidia 전환 매매 봇 초기화 ({mode_str})</b>\n\n"
             f"• 종목: {self.original_symbol}\n"
             f"• ETF: {self.etf_long} / {self.etf_short}\n"
             f"• 시간: {datetime.now(self.timezone).strftime('%Y-%m-%d %H:%M:%S')}"
