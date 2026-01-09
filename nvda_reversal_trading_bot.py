@@ -815,7 +815,7 @@ class NvdaReversalTradingBot:
 
     def run(self):
         """봇 실행"""
-        logger.info(f"Tesla 전환 매매 봇 시작 (Target: {self.original_symbol})")
+        logger.info(f"Nvidia 전환 매매 봇 시작 (Target: {self.original_symbol})")
         
         # 시작 시 계좌 상태 동기화
         self.sync_internal_state_with_account()
