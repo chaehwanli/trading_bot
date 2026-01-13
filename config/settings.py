@@ -50,8 +50,8 @@ TARGET_SYMBOLS = [
         "ORIGINAL": "TSLA",  # 원본 주식: Tesla
         "LONG": "TSLL",      # 2x 롱 ETF: Direxion Daily TSLA Bull 2X Shares
         "LONG_MULTIPLE": "2",
-        "SHORT": "TSLS",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
-        "SHORT_MULTIPLE": "-1"
+        "SHORT": "TSLZ",     # 1x 숏 ETF: Direxion Daily TSLA Bear 1X Shares
+        "SHORT_MULTIPLE": "-2"
     },
     {
         "ORIGINAL": "AMZN",# 원본 주식: Amazon
@@ -346,9 +346,9 @@ REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
 # 2. 리스크 관리 파라미터
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
 REVERSAL_1X_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
-REVERSAL_2X_STOP_LOSS_RATE = -0.10  # 손절 비율 (-2%)
+REVERSAL_2X_STOP_LOSS_RATE = -0.08  # 손절 비율 (-8%)
 REVERSAL_TAKE_PROFIT_RATE = 0.35  # 익절 비율 (+8%)
-REVERSAL_LOMG_MAX_HOLD_DAYS = 2  # 포지션 유지 최대 기간
+REVERSAL_LOMG_MAX_HOLD_DAYS = 5  # 포지션 유지 최대 기간
 REVERSAL_SHORT_MAX_HOLD_DAYS = 1  # 포지션 유지 최대 기간
 REVERSAL_MAX_HOLD_DAYS = 3  # 포지션 유지 최대 기간
 REVERSAL_MAX_DRAWDOWN = 0.1  # 허용 최대 자본 손실률 (5%)
@@ -399,5 +399,6 @@ REVERSAL_STRATEGY_PARAMS = {
     "price_momentum": REVERSAL_PRICE_MOMENTUM,
     "volume_threshold": REVERSAL_VOLUME_THRESHOLD,
     "market_sentiment_index": REVERSAL_MARKET_SENTIMENT_INDEX,
+    "rsi_oversold": 50,
 }
 

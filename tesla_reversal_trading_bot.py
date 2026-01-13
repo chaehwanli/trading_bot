@@ -86,7 +86,7 @@ class TeslaReversalTradingBot:
                 
                 # 강제 청산 날짜 재계산 (저장된 상태 기반)
                 if self.strategy.entry_time and self.strategy.current_position:
-                    target_days = 3 if self.strategy.current_position == "LONG" else 1
+                    target_days = 5 if self.strategy.current_position == "LONG" else 1
                     # entry_time은 state_manager에서 datetime으로 변환됨
                     entry_date = self.strategy.entry_time.date()
                     self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
@@ -387,7 +387,7 @@ class TeslaReversalTradingBot:
                 
                 # === 강제 청산 날짜 설정 ===
                 # LONG: 3 trading days, SHORT: 1 trading day
-                target_days = 3 if result['to_etf'] == self.etf_long else 1
+                target_days = 5 if result['to_etf'] == self.etf_long else 1
                 # 시장 날짜 기준으로 진입일 설정
                 entry_date = datetime.now(self.market_timezone).date()
                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
@@ -587,7 +587,7 @@ class TeslaReversalTradingBot:
                                 
                                 # === 강제 청산 날짜 설정 ===
                                 # LONG: 3 trading days, SHORT: 1 trading day
-                                target_days = 3 if position_side == "LONG" else 1
+                                target_days = 5 if position_side == "LONG" else 1
                                 entry_date = datetime.now(self.market_timezone).date()
                                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                                 logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
@@ -719,7 +719,7 @@ class TeslaReversalTradingBot:
                     self.forced_close_date = saved_state['force_close_date']
                     logger.info(f"💾 저장된 강제 청산 날짜 복원: {self.forced_close_date}")
                 elif self.strategy.entry_time:
-                     target_days = 3 # LONG
+                     target_days = 5 # LONG
                      
                      # 1. entry_time에서 날짜만 추출
                      entry_date = self.strategy.entry_time.date()

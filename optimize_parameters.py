@@ -35,8 +35,8 @@ def optimize_parameters(
     
     # 테스트할 파라미터 범위 정의
     param_grid = {
-        "1x_stop_loss": [-0.03, -0.05, -0.08, -0.10],
-        "2x_stop_loss": [-0.05, -0.08, -0.10, -0.15],
+        "1x_stop_loss": [-0.03, -0.05, -0.08],
+        "2x_stop_loss": [-0.05, -0.08, -0.10],
         "take_profit": [0.10, 0.15, 0.20, 0.25, 0.30, 0.35],
     }
     
@@ -90,7 +90,13 @@ def optimize_parameters(
         
         total_pnl = 0
         total_trades = 0
-        win_count = 0
+        total_fee = 0
+        
+        # 상세 통계용 변수
+        stats = {
+            "LONG": {"count": 0, "wins": 0, "losses": 0, "pnl": 0, "win_pnl": 0, "loss_pnl": 0, "stop_loss": 0, "take_profit": 0, "force_close_win": 0, "force_close_loss": 0},
+            "SHORT": {"count": 0, "wins": 0, "losses": 0, "pnl": 0, "win_pnl": 0, "loss_pnl": 0, "stop_loss": 0, "take_profit": 0, "force_close_win": 0, "force_close_loss": 0}
+        }
         
         # 각 심볼에 대해 백테스트
         for target_item in test_symbols:
@@ -103,7 +109,7 @@ def optimize_parameters(
             # 파라미터 설정
             params = REVERSAL_STRATEGY_PARAMS.copy()
             params["symbol"] = original_symbol
-            params["capital"] = 1200
+            params["capital"] = 2300
             params["1x_stop_loss_rate"] = stop_1x
             params["2x_stop_loss_rate"] = stop_2x
             params["take_profit_rate"] = take_profit
@@ -124,30 +130,88 @@ def optimize_parameters(
                 )
                 
                 if result:
-                    total_pnl += result['total_pnl']
-                    total_trades += len(result['trades'])
-                    win_count += len([t for t in result['trades'] if t['pnl'] > 0])
+                    trades = result.get('trades', [])
+                    total_pnl += result.get('total_pnl', 0)
+                    total_trades += len(trades)
+                    total_fee += result.get('total_fee', 0)
                     
+                    for t in trades:
+                        side = t['side'] # 'LONG' or 'SHORT'
+                        pnl = t['pnl']
+                        reason = t['reason']
+                        
+                        stats[side]["count"] += 1
+                        stats[side]["pnl"] += pnl
+                        
+                        if pnl > 0:
+                            stats[side]["wins"] += 1
+                            stats[side]["win_pnl"] += pnl
+                            if reason == "TAKE_PROFIT":
+                                stats[side]["take_profit"] += 1
+                            elif reason == "FORCE_CLOSE_TRADING_DAY_LIMIT":
+                                stats[side]["force_close_win"] += 1
+                        else:
+                            stats[side]["losses"] += 1
+                            stats[side]["loss_pnl"] += pnl
+                            if reason == "STOP_LOSS":
+                                stats[side]["stop_loss"] += 1
+                            elif reason == "FORCE_CLOSE_TRADING_DAY_LIMIT":
+                                stats[side]["force_close_loss"] += 1
+                                
             except Exception as e:
                 logger.error(f"Error testing {original_symbol}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
                 continue
         
-        # 결과 저장
-        win_rate = (win_count / total_trades * 100) if total_trades > 0 else 0
+        # 결과 계산
+        total_wins = stats["LONG"]["wins"] + stats["SHORT"]["wins"]
+        win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
         avg_pnl = total_pnl / len(test_symbols) if test_symbols else 0
         
-        results.append({
+        long_win_rate = (stats["LONG"]["wins"] / stats["LONG"]["count"]) if stats["LONG"]["count"] > 0 else 0
+        short_win_rate = (stats["SHORT"]["wins"] / stats["SHORT"]["count"]) if stats["SHORT"]["count"] > 0 else 0
+        
+        avg_long_win = (stats["LONG"]["win_pnl"] / stats["LONG"]["wins"]) if stats["LONG"]["wins"] > 0 else 0
+        avg_long_loss = (stats["LONG"]["loss_pnl"] / stats["LONG"]["losses"]) if stats["LONG"]["losses"] > 0 else 0
+        avg_short_win = (stats["SHORT"]["win_pnl"] / stats["SHORT"]["wins"]) if stats["SHORT"]["wins"] > 0 else 0
+        avg_short_loss = (stats["SHORT"]["loss_pnl"] / stats["SHORT"]["losses"]) if stats["SHORT"]["losses"] > 0 else 0
+        
+        res_entry = {
             "1x_stop_loss": stop_1x,
             "2x_stop_loss": stop_2x,
             "take_profit": take_profit,
             "total_pnl": total_pnl,
-            "avg_pnl_per_symbol": avg_pnl,
-            "total_trades": total_trades,
-            "win_count": win_count,
+            "avg_pnl": avg_pnl,
             "win_rate": win_rate,
-        })
+            "total_trades": int(total_trades),
+            "total_fee": total_fee,
+            
+            "long_trades": int(stats["LONG"]["count"]),
+            "long_win_rate": long_win_rate * 100,
+            "long_avg_profit": avg_long_win,
+            "long_avg_loss": avg_long_loss,
+            "long_stop_loss": int(stats["LONG"]["stop_loss"]),
+            "long_fc_loss": int(stats["LONG"]["force_close_loss"]),
+            "long_take_profit": int(stats["LONG"]["take_profit"]),
+            "long_fc_win": int(stats["LONG"]["force_close_win"]),
+            
+            "short_trades": int(stats["SHORT"]["count"]),
+            "short_win_rate": short_win_rate * 100,
+            "short_avg_profit": avg_short_win,
+            "short_avg_loss": avg_short_loss,
+            "short_stop_loss": int(stats["SHORT"]["stop_loss"]),
+            "short_fc_loss": int(stats["SHORT"]["force_close_loss"]),
+            "short_take_profit": int(stats["SHORT"]["take_profit"]),
+            "short_fc_win": int(stats["SHORT"]["force_close_win"]),
+        }
+        results.append(res_entry)
         
-        logger.info(f"Result: Total PnL=${total_pnl:.2f}, Avg PnL=${avg_pnl:.2f}, Win Rate={win_rate:.1f}%")
+        logger.info(f"Result: PnL=${total_pnl:.2f}, Win={win_rate/100:.1%} ({total_wins}/{total_trades}), Fee=${total_fee:.2f}")
+        logger.info(f" LONG: Trades={stats['LONG']['count']}, Win={long_win_rate:.1%}, AvgP=${avg_long_win:.2f}, AvgL=${avg_long_loss:.2f}")
+        logger.info(f"       Exit L: SL={stats['LONG']['stop_loss']}, FC_L={stats['LONG']['force_close_loss']} | Exit P: TP={stats['LONG']['take_profit']}, FC_P={stats['LONG']['force_close_win']}")
+        logger.info(f" SHORT: Trades={stats['SHORT']['count']}, Win={short_win_rate:.1%}, AvgP=${avg_short_win:.2f}, AvgL=${avg_short_loss:.2f}")
+        logger.info(f"       Exit L: SL={stats['SHORT']['stop_loss']}, FC_L={stats['SHORT']['force_close_loss']} | Exit P: TP={stats['SHORT']['take_profit']}, FC_P={stats['SHORT']['force_close_win']}")
     
     # 결과를 DataFrame으로 변환
     df_results = pd.DataFrame(results)
@@ -161,24 +225,32 @@ def optimize_parameters(
     df_results.to_csv(output_file, index=False)
     logger.info(f"\nResults saved to {output_file}")
     
-    # 상위 30개 결과 출력
-    print("\n" + "="*100)
-    print("TOP 30 PARAMETER COMBINATIONS")
-    print("="*100)
-    print(df_results.head(30).to_string(index=False))
+    # 상위 50개 결과 출력
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    print("\n" + "="*160)
+    print("TOP 50 PARAMETER COMBINATIONS")
+    print("="*160)
+    # 필요한 컬럼만 선택해서 출력
+    display_cols = [
+        "1x_stop_loss", "2x_stop_loss", "take_profit", "total_pnl", "win_rate", "total_trades", "total_fee",
+        "long_win_rate", "short_win_rate", "long_avg_profit", "long_avg_loss", "short_avg_profit", "short_avg_loss"
+    ]
+    print(df_results[display_cols].head(50).to_string(index=False))
     
     # 최적 파라미터 출력
     best = df_results.iloc[0]
     print("\n" + "="*100)
     print("BEST PARAMETERS")
     print("="*100)
-    print(f"1X Stop Loss:     {best['1x_stop_loss']:.1%}")
-    print(f"2X Stop Loss:     {best['2x_stop_loss']:.1%}")
-    print(f"Take Profit:      {best['take_profit']:.1%}")
-    print(f"Total PnL:        ${best['total_pnl']:.2f}")
-    print(f"Avg PnL/Symbol:   ${best['avg_pnl_per_symbol']:.2f}")
-    print(f"Win Rate:         {best['win_rate']:.1f}%")
-    print(f"Total Trades:     {best['total_trades']}")
+    print(f"1X Stop Loss/2X/TP: {best['1x_stop_loss']:.1%}/{best['2x_stop_loss']:.1%}/{best['take_profit']:.1%}")
+    print(f"Total PnL/Fee:      ${best['total_pnl']:.2f} / ${best['total_fee']:.2f}")
+    print(f"Win Rate (T/L/S):   {best['win_rate']:.1f}% / {best['long_win_rate']:.1f}% / {best['short_win_rate']:.1f}%")
+    print(f"Total Trades (L/S): {int(best['total_trades'])} ({int(best['long_trades'])}/{int(best['short_trades'])})")
+    print(f"Long Avg P/L:       ${best['long_avg_profit']:.2f} / ${best['long_avg_loss']:.2f}")
+    print(f"Short Avg P/L:      ${best['short_avg_profit']:.2f} / ${best['short_avg_loss']:.2f}")
+    print(f"Exit (Long):        SL={int(best['long_stop_loss'])}, TP={int(best['long_take_profit'])}, FC_L={int(best['long_fc_loss'])}, FC_P={int(best['long_fc_win'])}")
+    print(f"Exit (Short):       SL={int(best['short_stop_loss'])}, TP={int(best['short_take_profit'])}, FC_L={int(best['short_fc_loss'])}, FC_P={int(best['short_fc_win'])}")
     print("="*100)
     
     # 설정 파일 업데이트 제안

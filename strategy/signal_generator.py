@@ -31,8 +31,11 @@ class PositionSignalType(Enum):
 class SignalGenerator:
     """매매 신호 생성 클래스"""
     
-    def __init__(self):
+    def __init__(self, rsi_oversold=None):
         self.indicators = TechnicalIndicators()
+        # 기본값은 설정파일의 RSI_OVERSOLD(30) + 10 = 40.
+        # 파라미터로 전달된 값이 있으면 그 값을 그대로 임계값으로 사용.
+        self.rsi_oversold = rsi_oversold if rsi_oversold is not None else (RSI_OVERSOLD + 10)
     
     def generate_signal(
         self, 
@@ -82,7 +85,7 @@ class SignalGenerator:
                     "reason": "지표 계산 실패"
                 }
             
-            signal, confidence, reason = self._analyze_signals(
+            signal, confidence, reason = self._analyze_signals_only_long(
                 rsi, macd_data, current_position
             )
             
@@ -125,9 +128,78 @@ class SignalGenerator:
         macd_bearish = macd_line < signal_line and histogram < 0
         
         # RSI 과매수/과매도 확인
-        rsi_oversold = rsi < (RSI_OVERSOLD + 10)
+        # self.rsi_oversold는 이제 직접 비교할 임계값(예: 40, 50)
+        rsi_oversold = rsi < self.rsi_oversold
         rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
-        rsi_neutral = (RSI_OVERSOLD + 10) <= rsi <= (RSI_OVERBOUGHT - 10)
+        rsi_neutral = self.rsi_oversold <= rsi <= (RSI_OVERBOUGHT - 10)
+        
+        # 현재 포지션이 없는 경우
+        if current_position is None:
+            # 매수 신호: RSI 과매도 + MACD 상승 전환
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.8, "RSI 과매도 + MACD 상승 전환"
+            
+            # 매수 신호: RSI 중립 + MACD 강한 상승
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
+                #return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+                # RSI가 중립일 때도 상승 모멘텀이면 매수 고려? (일단 보류)
+                 return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+            
+            # 매도 신호: RSI 과매수 + MACD 하락 전환
+            if rsi_overbought and macd_bearish:
+                return SignalType.HOLD, 0.8, "RSI 과매수 + MACD 하락 전환"
+            
+            # 매도 신호: RSI 중립 + MACD 강한 하락
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 하락 모멘텀"
+        
+        # 현재 LONG 포지션인 경우
+        elif current_position == "LONG":
+            # 반대 신호 (포지션 전환): RSI 과매수 + MACD 하락
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.7, "LONG 포지션 전환: RSI 과매수 + MACD 하락"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bullish:
+                return SignalType.HOLD, 0.5, "LONG 포지션 유지"
+        
+        # 현재 SHORT 포지션인 경우
+        elif current_position == "SHORT":
+            # 반대 신호 (포지션 전환): RSI 과매도 + MACD 상승
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.7, "SHORT 포지션 전환: RSI 과매도 + MACD 상승"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bearish:
+                return SignalType.HOLD, 0.5, "SHORT 포지션 유지"
+        
+        # 기본값: 보유
+        return SignalType.HOLD, 0.3, "신호 없음"
+
+    def _analyze_signals_only_short(
+        self,
+        rsi: float,
+        macd: Dict[str, float],
+        current_position: Optional[str]
+    ) -> tuple:
+        """
+        RSI와 MACD를 종합하여 신호 분석
+        
+        Returns:
+            (SignalType, confidence, reason)
+        """
+        macd_line = macd["macd"]
+        signal_line = macd["signal"]
+        histogram = macd["histogram"]
+        
+        # MACD 골든크로스/데드크로스 확인
+        macd_bullish = macd_line > signal_line and histogram > 0
+        macd_bearish = macd_line < signal_line and histogram < 0
+        
+        # RSI 과매수/과매도 확인
+        rsi_oversold = rsi < self.rsi_oversold
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = self.rsi_oversold <= rsi <= (RSI_OVERBOUGHT - 10)
         
         # 현재 포지션이 없는 경우
         if current_position is None:
@@ -141,7 +213,271 @@ class SignalGenerator:
             
             # 매도 신호: RSI 과매수 + MACD 하락 전환
             if rsi_overbought and macd_bearish:
-                return SignalType.BUY, 0.8, "RSI 과매수 + MACD 하락 전환"
+                return SignalType.HOLD, 0.8, "RSI 과매수 + MACD 하락 전환"
+            
+            # 매도 신호: RSI 중립 + MACD 강한 하락
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 하락 모멘텀"
+        
+        # 현재 LONG 포지션인 경우
+        elif current_position == "LONG":
+            # 반대 신호 (포지션 전환): RSI 과매수 + MACD 하락
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.7, "LONG 포지션 전환: RSI 과매수 + MACD 하락"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bullish:
+                return SignalType.HOLD, 0.5, "LONG 포지션 유지"
+        
+        # 현재 SHORT 포지션인 경우
+        elif current_position == "SHORT":
+            # 반대 신호 (포지션 전환): RSI 과매도 + MACD 상승
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.7, "SHORT 포지션 전환: RSI 과매도 + MACD 상승"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bearish:
+                return SignalType.HOLD, 0.5, "SHORT 포지션 유지"
+        
+        # 기본값: 보유
+        return SignalType.HOLD, 0.3, "신호 없음"
+
+    def _analyze_signals_only_long(
+        self,
+        rsi: float,
+        macd: Dict[str, float],
+        current_position: Optional[str]
+    ) -> tuple:
+        """
+        RSI와 MACD를 종합하여 신호 분석
+        
+        Returns:
+            (SignalType, confidence, reason)
+        """
+        macd_line = macd["macd"]
+        signal_line = macd["signal"]
+        histogram = macd["histogram"]
+        
+        # MACD 골든크로스/데드크로스 확인
+        macd_bullish = macd_line > signal_line and histogram > 0
+        macd_bearish = macd_line < signal_line and histogram < 0
+        
+        # RSI 과매수/과매도 확인
+        rsi_oversold = rsi < self.rsi_oversold
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = self.rsi_oversold <= rsi <= (RSI_OVERBOUGHT - 10)
+        
+        # 현재 포지션이 없는 경우
+        if current_position is None:
+            # 매수 신호: RSI 과매도 + MACD 상승 전환
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.8, "RSI 과매도 + MACD 상승 전환"
+            
+            # 매수 신호: RSI 중립 + MACD 강한 상승
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+            
+            # 매도 신호: RSI 과매수 + MACD 하락 전환
+            if rsi_overbought and macd_bearish:
+                return SignalType.HOLD, 0.8, "RSI 과매수 + MACD 하락 전환"
+            
+            # 매도 신호: RSI 중립 + MACD 강한 하락
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 하락 모멘텀"
+        
+        # 현재 LONG 포지션인 경우
+        elif current_position == "LONG":
+            # 반대 신호 (포지션 전환): RSI 과매수 + MACD 하락
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.7, "LONG 포지션 전환: RSI 과매수 + MACD 하락"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bullish:
+                return SignalType.HOLD, 0.5, "LONG 포지션 유지"
+        
+        # 현재 SHORT 포지션인 경우
+        elif current_position == "SHORT":
+            # 반대 신호 (포지션 전환): RSI 과매도 + MACD 상승
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.7, "SHORT 포지션 전환: RSI 과매도 + MACD 상승"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bearish:
+                return SignalType.HOLD, 0.5, "SHORT 포지션 유지"
+        
+        # 기본값: 보유
+        return SignalType.HOLD, 0.3, "신호 없음"
+
+    def _analyze_signals_r1(
+        self,
+        rsi: float,
+        macd: Dict[str, float],
+        current_position: Optional[str]
+    ) -> tuple:
+        """
+        RSI와 MACD를 종합하여 신호 분석
+        
+        Returns:
+            (SignalType, confidence, reason)
+        """
+        macd_line = macd["macd"]
+        signal_line = macd["signal"]
+        histogram = macd["histogram"]
+        
+        # MACD 골든크로스/데드크로스 확인
+        macd_bullish = macd_line > signal_line and histogram > 0
+        macd_bearish = macd_line < signal_line and histogram < 0
+        
+        # RSI 과매수/과매도 확인
+        rsi_oversold = rsi < self.rsi_oversold
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = self.rsi_oversold <= rsi <= (RSI_OVERBOUGHT - 10)
+        
+        # 현재 포지션이 없는 경우
+        if current_position is None:
+            # 매수 신호: RSI 과매도 + MACD 상승 전환
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.8, "RSI 과매도 + MACD 상승 전환"
+            
+            # 매수 신호: RSI 중립 + MACD 강한 상승
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+            
+            # 매도 신호: RSI 과매수 + MACD 하락 전환
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.8, "RSI 과매수 + MACD 하락 전환"
+            
+            # 매도 신호: RSI 중립 + MACD 강한 하락
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 하락 모멘텀"
+        
+        # 현재 LONG 포지션인 경우
+        elif current_position == "LONG":
+            # 반대 신호 (포지션 전환): RSI 과매수 + MACD 하락
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.7, "LONG 포지션 전환: RSI 과매수 + MACD 하락"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bullish:
+                return SignalType.HOLD, 0.5, "LONG 포지션 유지"
+        
+        # 현재 SHORT 포지션인 경우
+        elif current_position == "SHORT":
+            # 반대 신호 (포지션 전환): RSI 과매도 + MACD 상승
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.7, "SHORT 포지션 전환: RSI 과매도 + MACD 상승"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bearish:
+                return SignalType.HOLD, 0.5, "SHORT 포지션 유지"
+        
+        # 기본값: 보유
+        return SignalType.HOLD, 0.3, "신호 없음"
+
+    def _analyze_signals_r1only_long(
+        self,
+        rsi: float,
+        macd: Dict[str, float],
+        current_position: Optional[str]
+    ) -> tuple:
+        """
+        RSI와 MACD를 종합하여 신호 분석
+        
+        Returns:
+            (SignalType, confidence, reason)
+        """
+        macd_line = macd["macd"]
+        signal_line = macd["signal"]
+        histogram = macd["histogram"]
+        
+        # MACD 골든크로스/데드크로스 확인
+        macd_bullish = macd_line > signal_line and histogram > 0
+        macd_bearish = macd_line < signal_line and histogram < 0
+        
+        # RSI 과매수/과매도 확인
+        rsi_oversold = rsi < self.rsi_oversold
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = self.rsi_oversold <= rsi <= (RSI_OVERBOUGHT - 10)
+        
+        # 현재 포지션이 없는 경우
+        if current_position is None:
+            # 매수 신호: RSI 과매도 + MACD 상승 전환
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.8, "RSI 과매도 + MACD 상승 전환"
+            
+            # 매수 신호: RSI 중립 + MACD 강한 상승
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+            
+            # 매도 신호: RSI 과매수 + MACD 하락 전환
+            if rsi_overbought and macd_bearish:
+                return SignalType.HOLD, 0.8, "RSI 과매수 + MACD 하락 전환"
+            
+            # 매도 신호: RSI 중립 + MACD 강한 하락
+            if rsi_neutral and macd_bearish: #and histogram < -0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 하락 모멘텀"
+        
+        # 현재 LONG 포지션인 경우
+        elif current_position == "LONG":
+            # 반대 신호 (포지션 전환): RSI 과매수 + MACD 하락
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.7, "LONG 포지션 전환: RSI 과매수 + MACD 하락"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bullish:
+                return SignalType.HOLD, 0.5, "LONG 포지션 유지"
+        
+        # 현재 SHORT 포지션인 경우
+        elif current_position == "SHORT":
+            # 반대 신호 (포지션 전환): RSI 과매도 + MACD 상승
+            if rsi_oversold and macd_bullish:
+                return SignalType.BUY, 0.7, "SHORT 포지션 전환: RSI 과매도 + MACD 상승"
+            
+            # 포지션 유지
+            if rsi_neutral and macd_bearish:
+                return SignalType.HOLD, 0.5, "SHORT 포지션 유지"
+        
+        # 기본값: 보유
+        return SignalType.HOLD, 0.3, "신호 없음"
+
+    def _analyze_signals_r1_only_short(
+        self,
+        rsi: float,
+        macd: Dict[str, float],
+        current_position: Optional[str]
+    ) -> tuple:
+        """
+        RSI와 MACD를 종합하여 신호 분석
+        
+        Returns:
+            (SignalType, confidence, reason)
+        """
+        macd_line = macd["macd"]
+        signal_line = macd["signal"]
+        histogram = macd["histogram"]
+        
+        # MACD 골든크로스/데드크로스 확인
+        macd_bullish = macd_line > signal_line and histogram > 0
+        macd_bearish = macd_line < signal_line and histogram < 0
+        
+        # RSI 과매수/과매도 확인
+        rsi_oversold = rsi < (RSI_OVERSOLD + 10)
+        rsi_overbought = rsi > (RSI_OVERBOUGHT - 10)
+        rsi_neutral = (RSI_OVERSOLD + 10) <= rsi <= (RSI_OVERBOUGHT - 10)
+        
+        # 현재 포지션이 없는 경우
+        if current_position is None:
+            # 매수 신호: RSI 과매도 + MACD 상승 전환
+            if rsi_oversold and macd_bullish:
+                return SignalType.HOLD, 0.8, "RSI 과매도 + MACD 상승 전환"
+            
+            # 매수 신호: RSI 중립 + MACD 강한 상승
+            if rsi_neutral and macd_bullish: #and histogram > 0.5:
+                return SignalType.HOLD, 0.5, "MACD 강한 상승 모멘텀"
+            
+            # 매도 신호: RSI 과매수 + MACD 하락 전환
+            if rsi_overbought and macd_bearish:
+                return SignalType.SELL, 0.8, "RSI 과매수 + MACD 하락 전환"
             
             # 매도 신호: RSI 중립 + MACD 강한 하락
             if rsi_neutral and macd_bearish: #and histogram < -0.5:

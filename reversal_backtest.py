@@ -273,7 +273,7 @@ class ReversalBacktester:
                         idx = self.trading_day_index.get(entry_date)
 
                         if idx is not None:
-                            max_hold_days_long = 3
+                            max_hold_days_long = 5
                             close_idx = idx + max_hold_days_long
                             if close_idx < len(self.trading_days):
                                 self.forced_close_date = self.trading_days[close_idx]

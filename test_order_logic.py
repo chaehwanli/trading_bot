@@ -29,10 +29,19 @@ def test_order_logic():
     print("\n[1] Initializing KIS API (Real Trading)...")
     kis = KisApi(is_paper_trading=False)
     
-    kis.ensure_valid_token()
+    # Try to ensure we have a valid token
+    try:
+        kis.ensure_valid_token()
+    except Exception as e:
+        print(f"❌ Error during token validation: {e}")
     
     if not kis.access_token:
-        print("❌ Failed to get Access Token. Check your API Key/Secret in .env")
+        print("❌ Failed to get Access Token.")
+        print("💡 Possible causes:")
+        print("   1. Invalid KIS_API_KEY or KIS_API_SECRET in .env")
+        print("   2. Your IP might not be registered in KIS Developer Portal")
+        print("   3. Your OpenAPI service might be expired or not applied for Real Trading")
+        print("   4. You might be using Paper Trading keys with the Real URL (or vice-versa)")
         return
 
     print("✅ API Initialized & Token Retrieved.")

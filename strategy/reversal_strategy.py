@@ -57,7 +57,11 @@ class ReversalStrategy:
         """
         self.params = params or REVERSAL_STRATEGY_PARAMS.copy()
         self.indicators = TechnicalIndicators()
-        self.signal_generator = SignalGenerator()
+        
+        # SignalGenerator에 rsi_oversold 파라미터 전달
+        # optimize_rsi_threshold.py 등에서 "rsi_oversold" 키로 값을 넘길 예정
+        rsi_oversold = self.params.get("rsi_oversold")
+        self.signal_generator = SignalGenerator(rsi_oversold=rsi_oversold)
         
         # 전략 상태
         self.current_position = None  # "LONG", "SHORT", None
