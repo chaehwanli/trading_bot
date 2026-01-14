@@ -341,7 +341,7 @@ DRY_RUN = False       # 실제 주문 없이 시뮬레이션만
 # 1. 기본 거래 파라미터
 REVERSAL_SYMBOL = "TSLA"  # 거래 종목 (원본 주식)
 REVERSAL_POSITION_TYPE = "NONE"  # 현재 포지션 상태: LONG, SHORT, NONE
-REVERSAL_CAPITAL = 1200  # 전체 투자 시드 (USD)
+REVERSAL_CAPITAL = 2300  # 전체 투자 시드 (USD)
 
 # 2. 리스크 관리 파라미터
 REVERSAL_STOP_LOSS_RATE = -0.03  # 손절 비율 (-2%)
