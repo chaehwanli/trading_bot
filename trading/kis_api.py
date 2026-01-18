@@ -311,7 +311,7 @@ class KisApi:
         return None
 
     def get_overseas_stock_balance(self):
-        """해외주식 체결기준 잔고 및 보유 종목 조회"""
+        """해외주식 체결기준 잔고 및 보유 종목 조회 (다중 거래소 순회)"""
         path = "/uapi/overseas-stock/v1/trading/inquire-balance"
         url = f"{self.base_url}{path}"
         
@@ -320,54 +320,85 @@ class KisApi:
         
         headers = self._get_common_headers(tr_id)
         
-        params = {
-            "CANO": self.account_front,
-            "ACNT_PRDT_CD": self.account_back,
-            "OVRS_EXCG_CD": "NAS", # 거래소 코드 (NAS/AMS 등, 대표값 사용)
-            "TR_CRCY_CD": "USD",
-            "CTX_AREA_FK100": "",
-            "CTX_AREA_NK100": "",
-            "CTX_AREA_FK200": "",
-            "CTX_AREA_NK200": ""
+        # 조회 대상 거래소 목록 (NAS:나스닥, NYS:뉴욕, AMS:아멕스, AMEX:아멕스(별칭))
+        # 일부 계좌에서는 AMS 대신 AMEX를 써야 조회가 되는 경우가 있음
+        exchanges = ["NAS", "NYS", "AMS", "AMEX"]
+        
+        aggregated_holdings = []
+        last_assets = {}
+        
+        for exch in exchanges:
+            params = {
+                "CANO": self.account_front,
+                "ACNT_PRDT_CD": self.account_back,
+                "OVRS_EXCG_CD": exch,
+                "TR_CRCY_CD": "USD",
+                "CTX_AREA_FK100": "",
+                "CTX_AREA_NK100": "",
+                "CTX_AREA_FK200": "",
+                "CTX_AREA_NK200": ""
+            }
+            
+            logger.debug(f"[API] get_overseas_stock_balance ({exch}) Request")
+            
+            # 재시도 로직
+            max_retries = 3
+            for i in range(max_retries):
+                try:
+                    if i > 0: time.sleep(1)
+                    
+                    res = requests.get(url, headers=headers, params=params)
+                    
+                    if res.status_code == 500:
+                         logger.warning(f"잔고 조회 ({exch}) 500 Error, retrying {i+1}/{max_retries}...")
+                         continue
+                         
+                    res.raise_for_status()
+                    data = res.json()
+                    
+                    if data['rt_cd'] != '0':
+                         # 특정 거래소에 데이터가 없으면 에러가 날 수 있음 -> 로그만 남기고 다음 거래소로
+                         # logger.debug(f"잔고 조회 ({exch}) 결과 없음 또는 실패: {data['msg1']}")
+                         break 
+                    
+                    # 성공
+                    holdings = data.get('output1', [])
+                    assets = data.get('output2', {})
+                    
+                    if holdings:
+                         aggregated_holdings.extend(holdings)
+                         
+                    # 자산 정보는 일반적으로 동일하거나, 현금 포함된 정보를 사용
+                    # output2가 비어있지 않으면 업데이트 (마지막 성공 응답 기준)
+                    if assets and not last_assets:
+                         last_assets = assets
+                    # 만약 assets에 유의미한 현금 정보가 있다면 갱신 (frcr_dncl_amt_2 등)
+                    if assets and float(assets.get('frcr_dncl_amt_2', 0)) > 0:
+                         last_assets = assets
+                         
+                    break # Loop over retries, continue to next exchange
+                    
+                except Exception as e:
+                    logger.error(f"API 호출 오류 (get_overseas_stock_balance - {exch}): {e}")
+                    if i < max_retries - 1:
+                        continue
+                        
+        # 최종 결과 반환
+        if not aggregated_holdings and not last_assets:
+             return None
+             
+        # 중복 제거 (혹시 AMS/AMEX 등에서 중복 조회될 경우 대비)
+        # 상품번호(ovrs_pdno) 기준
+        unique_holdings = {}
+        for h in aggregated_holdings:
+             pdno = h.get('ovrs_pdno')
+             if pdno:
+                  unique_holdings[pdno] = h
+        
+        return {
+            "holdings": list(unique_holdings.values()),
+            "assets": last_assets
         }
-        
-        logger.debug(f"[API] get_overseas_stock_balance Request - tr_id: {tr_id}, URL: {url}, Params: {params}")
-        
-        # 재시도 로직 추가
-        max_retries = 3
-        for i in range(max_retries):
-            try:
-                if i > 0: time.sleep(1)
-                
-                res = requests.get(url, headers=headers, params=params)
-                
-                if res.status_code == 500:
-                    logger.warning(f"잔고 조회 500 Error, retrying {i+1}/{max_retries}...")
-                    logger.debug(f"[API] get_overseas_stock_balance Response - Data: {res.json()}")
-                    continue
-                    
-                res.raise_for_status()
-                data = res.json()
-                
-                if data['rt_cd'] != '0':
-                    logger.error(f"잔고 조회 실패: {data['msg1']}")
-                    return None
-                    
-                # output1: 잔고 상세 (보유 종목 리스트)
-                # output2: 계좌 자산 현황
-                logger.debug(f"[API] get_overseas_stock_balance Response - Data: {data}")
-
-                return {
-                    "holdings": data['output1'],
-                    "assets": data['output2']
-                }
-                
-            except Exception as e:
-                logger.error(f"API 호출 오류 (get_overseas_stock_balance): {e}")
-                if i < max_retries - 1:
-                    continue
-                return None
-        return None
 
     def get_overseas_trades(self):
         """체결 내역 확인 (즉시 반영)"""
