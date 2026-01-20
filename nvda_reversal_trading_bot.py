@@ -235,16 +235,30 @@ class NvdaReversalTradingBot:
             exit_reason = self.strategy.check_stop_loss_take_profit2(current_price, multiple)
             
             if exit_reason:
-                logger.info(f"{self.strategy.current_etf_symbol} {exit_reason} 조건 충족")
+                # [Request] 거래 시간 확인 (정규장만 허용)
+                market_status = self._get_market_status()
+                allowed_statuses = ["REGULAR"]
                 
-                self._close_position(current_price, exit_reason)
-                
-                # === STOP_LOSS 쿨다운 설정 (4일) ===
-                if exit_reason == "STOP_LOSS":
-                   from datetime import timedelta
-                   now = datetime.now(self.timezone)
-                   self.cooldown_until_date = (now + timedelta(days=4)).date()
-                   logger.info(f"⛔ STOP_LOSS 쿨다운 시작 -> {self.cooldown_until_date} 까지 거래 중단")
+                # 모의투자인 경우 테스트 편의를 위해 프리/애프터마켓 허용 (선택사항, 일단 사용자 요청대로 정규장 권장하되, 기존 로직 참고)
+                # 사용자 요청: "왜 정규장 시간이 아닌데 포지션 청산한건지" -> 정규장만 원함.
+                # 따라서 모의투자여도 이 로직 검증을 위해 REGULAR만 허용하거나, 
+                # 테스트를 위해 유연하게 하려면 아래 주석 해제. 지금은 안전하게 REGULAR로 통일.
+                # if self.kis.is_paper_trading:
+                #     allowed_statuses.extend(["PREMARKET", "AFTERMARKET"])
+
+                if market_status in allowed_statuses:
+                    logger.info(f"{self.strategy.current_etf_symbol} {exit_reason} 조건 충족 (Market: {market_status})")
+                    
+                    self._close_position(current_price, exit_reason)
+                    
+                    # === STOP_LOSS 쿨다운 설정 (4일) ===
+                    if exit_reason == "STOP_LOSS":
+                       from datetime import timedelta
+                       now = datetime.now(self.timezone)
+                       self.cooldown_until_date = (now + timedelta(days=4)).date()
+                       logger.info(f"⛔ STOP_LOSS 쿨다운 시작 -> {self.cooldown_until_date} 까지 거래 중단")
+                else:
+                    logger.info(f"🛑 {exit_reason} 조건 충족되었으나 비거래 시간 ({market_status}) - 청산 보류")
             
             # 최대 보유 기간 확인 (요청사항 4: 시간 -> 거래일 수 기준)
             # LOGIC SYNC: reversal_backtest.py uses trading days.
