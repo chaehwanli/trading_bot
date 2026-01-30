@@ -351,7 +351,7 @@ class KisApi:
             }
 
         # 재시도 로직
-        max_retries = 3
+        max_retries = 5
         for i in range(max_retries):
             try:
                 # Rate Limit 등을 고려한 미세 지연
