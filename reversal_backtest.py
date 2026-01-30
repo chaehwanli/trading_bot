@@ -385,6 +385,18 @@ class ReversalBacktester:
                 'time': current_time,
                 'capital': estimated_capital
             })
+
+            # Max Drawdown Check
+            current_close_price = None
+            if self.strategy.current_position:
+                 if self.strategy.current_position == "LONG":
+                     current_close_price = etf_long_price
+                 else:
+                     current_close_price = etf_short_price
+
+            if self.strategy.check_max_drawdown(current_close_price):
+                print(f"⛔ Max Drawdown Limit Reached! Stopping Backtest at {current_time}")
+                break
         
         # 마지막 포지션 청산
         if self.strategy.current_position:
@@ -567,7 +579,6 @@ def main():
         # 전략 파라미터 설정
         params = REVERSAL_STRATEGY_PARAMS.copy()
         params["symbol"] = original_symbol
-        params["capital"] = 1200
         params["reverse_trigger"] = False
         params["reverse_mode"] = "full"
         
