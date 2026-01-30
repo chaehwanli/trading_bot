@@ -219,27 +219,61 @@ class KisApi:
         symbol: 심볼
         period_code: D(일), W(주), M(월)
         """
-        path = "/uapi/overseas-price/v1/quotations/dailyprice"
-        url = f"{self.base_url}{path}"
         exch_code = self._guess_exch_code(symbol)
 
-        headers = self._get_common_headers("HHDFS76240000")
-        
-        # 날짜 형식 YYYYMMDD
-        today = datetime.now()
-        # 0: 일, 1: 주, 2: 월   (문서확인: GUBN 0=일, 1=주, 2=월)
-        gubn = "0"
-        if period_code == "W": gubn = "1"
-        elif period_code == "M": gubn = "2"
+        if exch_code == "KRX":
+            # 국내 주식 기간별 시세 (일/주/월)
+            path = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("FHKST03010100")
 
-        params = {
-            "AUTH": "",
-            "EXCD": exch_code,
-            "SYMB": symbol,
-            "GUBN": gubn,
-            "BYMD": today.strftime("%Y%m%d"), # 조회 기준일(오늘)
-            "MODP": "1" # 수정주가 반영 여부 (0:미반영, 1:반영)
-        }
+            # 1: 일, W: 주, M: 월
+            period_div = "D"
+            if period_code == "W": period_div = "W"
+            elif period_code == "M": period_div = "M"
+
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_DATE_1": datetime.now().strftime("%Y%m%d"), # 조회 시작일 (최신)
+                "FID_INPUT_DATE_2": "20000101", # 조회 종료일 (과거 충분히) - API가 기간조회가 아니라 기준일로부터 개수일 수 있음. 확인 필요.
+                # FHKST03010100 (국내주식 업종 기간별시세) vs inquire-daily-itemchartprice
+                # inquire-daily-itemchartprice (FHKST03010100)
+                # FID_INPUT_DATE_1: 시작일자
+                # FID_INPUT_DATE_2: 종료일자
+                # FID_PERIOD_DIV_CODE: D
+                "FID_PERIOD_DIV_CODE": period_div,
+                "FID_ORG_ADJ_PRC": "1" # 1:수정주가
+            }
+            # Note: 국내 주식 기간별 시세 API 파라미터가 다를 수 있음.
+            # FHKST03010100 documentation check:
+            # FID_COND_MRKT_DIV_CODE=J
+            # FID_INPUT_ISCD=code
+            # FID_INPUT_DATE_1: start date
+            # FID_INPUT_DATE_2: end date
+            # FID_PERIOD_DIV_CODE: D/W/M
+            # FID_ORG_ADJ_PRC: 0 or 1
+        else:
+            # 해외 주식 기간별 시세
+            path = "/uapi/overseas-price/v1/quotations/dailyprice"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("HHDFS76240000")
+            
+            # 날짜 형식 YYYYMMDD
+            today = datetime.now()
+            # 0: 일, 1: 주, 2: 월   (문서확인: GUBN 0=일, 1=주, 2=월)
+            gubn = "0"
+            if period_code == "W": gubn = "1"
+            elif period_code == "M": gubn = "2"
+
+            params = {
+                "AUTH": "",
+                "EXCD": exch_code,
+                "SYMB": symbol,
+                "GUBN": gubn,
+                "BYMD": today.strftime("%Y%m%d"), # 조회 기준일(오늘)
+                "MODP": "1" # 수정주가 반영 여부 (0:미반영, 1:반영)
+            }
 
         try:
             res = requests.get(url, headers=headers, params=params)
@@ -250,7 +284,27 @@ class KisApi:
                 logger.error(f"일별 시세 조회 실패 ({symbol}): {data['msg1']}")
                 return None
             
-            return data['output2'] # 일별 데이터 리스트
+            if exch_code == "KRX":
+                 # 국내 출력 포맷: output2 list
+                 # stck_bsop_date (영업일자)
+                 # stck_clpr (종가)
+                 # stck_oprc (시가)
+                 # stck_hgpr (고가)
+                 # stck_lwpr (저가)
+                 # acml_vol (누적거래량)
+                 result = []
+                 for item in data.get('output2', []):
+                     result.append({
+                         "xymd": item["stck_bsop_date"],
+                         "clos": item["stck_clpr"],
+                         "open": item["stck_oprc"],
+                         "high": item["stck_hgpr"],
+                         "low": item["stck_lwpr"],
+                         "evol": item["acml_vol"]
+                     })
+                 return result
+            else:
+                 return data['output2'] # 일별 데이터 리스트
 
         except Exception as e:
             logger.error(f"API 호출 오류 (get_daily_price): {e}")
@@ -258,28 +312,45 @@ class KisApi:
 
     def get_minute_price(self, symbol: str, interval_min: int = 60):
         """
-        해외주식 분봉 조회 (당일/과거 포함)
-        TR_ID: HHDFS76950200 (해외주식 분봉조회)
-        :param interval_min: 분봉 주기 (1, 3, 5, 10, 15, 30, 60 등)
+        분봉 시세 조회 (국내/해외 통합)
+        :param symbol: 종목코드
+        :param interval_min: 분봉 주기 (기본 60분)
         """
-        path = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
-        url = f"{self.base_url}{path}"
         exch_code = self._guess_exch_code(symbol)
         
-        headers = self._get_common_headers("HHDFS76950200")
-        
-        params = {
-            "AUTH": "",
-            "EXCD": exch_code,
-            "SYMB": symbol,
-            "NMIN": str(interval_min), # 동적 주기 설정
-            "PINC": "1", # 전일포함
-            "NEXT": "",
-            "NREC": "120", # 요청 개수
-            "KEYB": "" 
-        }
+        if exch_code == "KRX":
+            # 국내 주식 분봉 (주식분별주식: FHKST03010200)
+            path = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("FHKST03010200")
+            
+            # 국내 API는 "시간" 기준 (FID_INPUT_HOUR_1)
+            # 현재 시각(HHMMSS)을 넣으면 그 이전 데이터를 줌
+            params = {
+                "FID_ETC_CLS_CODE": "",
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_HOUR_1": datetime.now().strftime("%H%M%S"), 
+                "FID_PW_DATA_INCU_YN": "Y"
+            }
+        else:
+            # 해외 주식 분봉 (해외주식분봉조회: HHDFS76950200)
+            path = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
+            url = f"{self.base_url}{path}"
+            headers = self._get_common_headers("HHDFS76950200")
+            
+            params = {
+                "AUTH": "",
+                "EXCD": exch_code,
+                "SYMB": symbol,
+                "NMIN": str(interval_min),
+                "PINC": "1",
+                "NEXT": "",
+                "NREC": "120",
+                "KEYB": "" 
+            }
 
-        # 재시도 로직 추가 (500 에러 대응)
+        # 재시도 로직
         max_retries = 3
         for i in range(max_retries):
             try:
@@ -290,7 +361,7 @@ class KisApi:
                 
                 if res.status_code == 500:
                     logger.warning(f"API 500 Error ({symbol}), retrying {i+1}/{max_retries}...")
-                    time.sleep(1) # 대기 후 재시도
+                    time.sleep(1)
                     continue
                 
                 res.raise_for_status()
@@ -300,7 +371,22 @@ class KisApi:
                     logger.error(f"분봉 시세 조회 실패 ({symbol}): {data['msg1']}")
                     return None
                     
-                return data['output2']
+                if exch_code == "KRX":
+                    # 국내 출력 포맷 변환
+                    result = []
+                    for item in data.get('output2', []):
+                         result.append({
+                             "kymd": item["stck_bsop_date"],
+                             "khms": item["stck_cntg_hour"],
+                             "open": item["stck_oprc"],
+                             "high": item["stck_hgpr"],
+                             "low": item["stck_lwpr"],
+                             "last": item["stck_prpr"],
+                             "evol": item["cntg_vol"]
+                         })
+                    return result
+                else:
+                    return data['output2']
 
             except Exception as e:
                 logger.error(f"API 호출 오류 (get_minute_price): {e}")

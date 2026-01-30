@@ -46,6 +46,8 @@ class ReversalBacktester:
         self.forced_close_date = None
         # STOP_LOSS 쿨다운 종료일
         self.cooldown_until_date = None
+        
+        self.market = "US" # Default
 
     def build_trading_calendar(self, start_dt, end_dt, market: str):
         """
@@ -100,33 +102,44 @@ class ReversalBacktester:
         current_time = dt_kr.time()
         curr_min = current_time.hour * 60 + current_time.minute
         
-        is_dst = self._is_dst(dt)
-        
-        if is_dst: # Summer Time (US DST Active)
-            # Daytime: 10:00 ~ 17:00
-            if 600 <= curr_min < 1020: return "DAYTIME"
-            # Premarket: 17:00 ~ 22:30
-            if 1020 <= curr_min < 1350: return "PREMARKET"
-            # Regular: 22:30 ~ 05:00 (Next day)
-            # 22:30 = 1350, 24:00 = 1440. 05:00 = 300.
-            if 1350 <= curr_min or curr_min < 300: return "REGULAR"
-            # Aftermarket: 05:00 ~ 07:00
-            if 300 <= curr_min < 420: return "AFTERMARKET"
-            # Extended: 07:00 ~ 09:00
-            if 420 <= curr_min < 540: return "EXTENDED"
-        else: # Winter Time (US DST Inactive)
-            # Daytime: 10:00 ~ 18:00
-            if 600 <= curr_min < 1080: return "DAYTIME"
-            # Premarket: 18:00 ~ 23:30
-            if 1080 <= curr_min < 1410: return "PREMARKET"
-            # Regular: 23:30 ~ 06:00 (Next day)
-            # 23:30 = 1410. 06:00 = 360.
-            if 1410 <= curr_min or curr_min < 360: return "REGULAR"
-            # Aftermarket: 06:00 ~ 07:00
-            if 360 <= curr_min < 420: return "AFTERMARKET"
-            # Extended: 07:00 ~ 09:00
-            if 420 <= curr_min < 540: return "EXTENDED"
+        if self.market == "KR":
+             # KR Market: 09:00 ~ 15:30
+             # Pre: 08:30 ~ 09:00
+             # Post: 15:30 ~ 18:00 (TimeWatch 등)
+             if 540 <= curr_min < 930: return "REGULAR" # 09:00 ~ 15:30
+             if 510 <= curr_min < 540: return "PREMARKET" # 08:30 ~ 09:00
+             if 930 <= curr_min < 1080: return "AFTERMARKET" # 15:30 ~ 18:00
+             return "CLOSED"
+        else:
+            # US Market
+            is_dst = self._is_dst(dt)
             
+            if is_dst: # Summer Time (US DST Active)
+                # Daytime: 10:00 ~ 17:00 (Visual check, usually market open 09:30 ET => 22:30 KST)
+                # 09:30 ET = 22:30 KST = 1350 min
+                if 600 <= curr_min < 1020: return "DAYTIME"
+                # Premarket: 17:00 ~ 22:30
+                if 1020 <= curr_min < 1350: return "PREMARKET"
+                # Regular: 22:30 ~ 05:00 (Next day)
+                # 22:30 = 1350, 24:00 = 1440. 05:00 = 300.
+                if 1350 <= curr_min or curr_min < 300: return "REGULAR"
+                # Aftermarket: 05:00 ~ 07:00
+                if 300 <= curr_min < 420: return "AFTERMARKET"
+                # Extended: 07:00 ~ 09:00
+                if 420 <= curr_min < 540: return "EXTENDED"
+            else: # Winter Time (US DST Inactive)
+                # Daytime: 10:00 ~ 18:00
+                if 600 <= curr_min < 1080: return "DAYTIME"
+                # Premarket: 18:00 ~ 23:30
+                if 1080 <= curr_min < 1410: return "PREMARKET"
+                # Regular: 23:30 ~ 06:00 (Next day)
+                # 23:30 = 1410. 06:00 = 360.
+                if 1410 <= curr_min or curr_min < 360: return "REGULAR"
+                # Aftermarket: 06:00 ~ 07:00
+                if 360 <= curr_min < 420: return "AFTERMARKET"
+                # Extended: 07:00 ~ 09:00
+                if 420 <= curr_min < 540: return "EXTENDED"
+                
         return "CLOSED"
     
     def run_backtest(
@@ -193,11 +206,14 @@ class ReversalBacktester:
         common_index = original_data.index.intersection(etf_long_data.index).intersection(etf_short_data.index)
         common_index = common_index.sort_values()
         
+        # Market Detection
+        self.market = "KR" if original_symbol.isdigit() and len(original_symbol) == 6 else "US"
+
         # 거래일 캘린더 생성 (1회)
         self.build_trading_calendar(
             start_dt=common_index[0],
             end_dt=common_index[-1],
-            market="US"   # ETF 기준 (현재 코드 기준)
+            market=self.market
         )
         
         # 백테스트 실행
