@@ -180,7 +180,7 @@ class KisApi:
         logger.debug(f"[API] get_current_price Request - URL: {url}, Params: {params}")
 
         # 재시도 로직 추가 (500 에러 대응)
-        max_retries = 3
+        max_retries = 5
         for i in range(max_retries):
             try:
                 # API 호출 간격 조절

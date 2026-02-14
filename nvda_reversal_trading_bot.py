@@ -70,6 +70,7 @@ class NvdaReversalTradingBot:
             self.market_timezone = pytz.timezone("US/Eastern")
         
         # [State Persistence] 저장된 상태가 있으면 복원 (자본금 및 포지션 정보)
+        self.cooldown_until_date = None
         saved_state = self.state_manager.load_state()
         if saved_state:
             if 'capital' in saved_state:
@@ -100,8 +101,13 @@ class NvdaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
+
+            if saved_state.get('cooldown_until_date'):
+                self.cooldown_until_date = saved_state['cooldown_until_date']
+                logger.info(f"💾 저장된 쿨다운 날짜 복원: {self.cooldown_until_date}")
         
         self.scheduler = TradingScheduler()
         
@@ -114,8 +120,7 @@ class NvdaReversalTradingBot:
         
         self.is_running = False
         
-        # 쿨다운 상태 (날짜 기준)
-        self.cooldown_until_date = None
+
         
         logger.info(f"Nvidia 전환 매매 봇 초기화 (KIS API): {self.original_symbol} -> {self.etf_long}/{self.etf_short}")
         logger.info(f"Bot Source File: {os.path.abspath(__file__)}") # Verify running path
@@ -257,6 +262,18 @@ class NvdaReversalTradingBot:
                        now = datetime.now(self.timezone)
                        self.cooldown_until_date = (now + timedelta(days=4)).date()
                        logger.info(f"⛔ STOP_LOSS 쿨다운 시작 -> {self.cooldown_until_date} 까지 거래 중단")
+                       
+                       # [State Persistence] 쿨다운 설정 저장
+                       self.state_manager.save_state({
+                            "current_position": None,
+                            "current_etf_symbol": None,
+                            "entry_price": None,
+                            "entry_time": None,
+                            "entry_quantity": None,
+                            "capital": self.strategy.capital,
+                            "force_close_date": None,
+                            "cooldown_until_date": self.cooldown_until_date
+                        })
                 else:
                     logger.info(f"🛑 {exit_reason} 조건 충족되었으나 비거래 시간 ({market_status}) - 청산 보류")
             
@@ -396,7 +413,8 @@ class NvdaReversalTradingBot:
                     "entry_time": self.strategy.entry_time,
                     "entry_quantity": self.strategy.entry_quantity,
                     "capital": self.strategy.capital,
-                    "force_close_date": self.forced_close_date
+                    "force_close_date": self.forced_close_date,
+                    "cooldown_until_date": self.cooldown_until_date
                 })
                 
                 # === 강제 청산 날짜 설정 ===
@@ -499,7 +517,8 @@ class NvdaReversalTradingBot:
             "entry_time": None,
             "entry_quantity": None,
             "capital": self.strategy.capital,
-            "force_close_date": None
+            "force_close_date": None,
+            "cooldown_until_date": self.cooldown_until_date
         })
     
     def execute_trading_strategy(self):
@@ -519,6 +538,27 @@ class NvdaReversalTradingBot:
         if market_status in allowed_statuses:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
             
+            # 0. 쿨다운 체크
+            if self.cooldown_until_date:
+                today = datetime.now(self.timezone).date()
+                if today <= self.cooldown_until_date:
+                    logger.info(f"⛔ STOP_LOSS 쿨다운 중입니다. (해제일: {self.cooldown_until_date} 이후) - 거래 스킵")
+                    return
+                else:
+                    logger.info(f"🟢 STOP_LOSS 쿨다운 해제됨 ({self.cooldown_until_date} 지남)")
+                    self.cooldown_until_date = None
+                    # 상태 업데이트 (쿨다운 해제 저장)
+                    self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": None
+                    })
+
             # 이미 포지션이 있으면 스킵
             if self.strategy.current_position:
                 # [Request] 이미 포지션이 있어도, 강제 청산 날짜가 지났으면 모니터링 로직 태워서 청산 시도
@@ -596,7 +636,8 @@ class NvdaReversalTradingBot:
                                     "entry_time": self.strategy.entry_time,
                                     "entry_quantity": self.strategy.entry_quantity,
                                     "capital": self.strategy.capital,
-                                    "force_close_date": self.forced_close_date
+                                    "force_close_date": self.forced_close_date,
+                                    "cooldown_until_date": self.cooldown_until_date
                                 })
                                 
                                 # === 강제 청산 날짜 설정 ===
@@ -721,7 +762,8 @@ class NvdaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
 
                 target_found = True
@@ -749,7 +791,8 @@ class NvdaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
                 
                 break
@@ -779,7 +822,8 @@ class NvdaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
 
                 target_found = True
@@ -807,7 +851,8 @@ class NvdaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
 
                 break
