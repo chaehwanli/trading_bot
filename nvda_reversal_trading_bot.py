@@ -600,7 +600,7 @@ class NvdaReversalTradingBot:
                                 })
                                 
                                 # === 강제 청산 날짜 설정 ===
-                                # LONG: 3 trading days, SHORT: 1 trading day
+                                # LONG: 5 trading days, SHORT: 1 trading day
                                 target_days = 5 if position_side == "LONG" else 1
                                 entry_date = datetime.now(self.market_timezone).date()
                                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
