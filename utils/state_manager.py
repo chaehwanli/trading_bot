@@ -57,6 +57,16 @@ class TradeStateManager:
                     except:
                         pass
                     
+            # date 복원 (cooldown_until_date)
+            if 'cooldown_until_date' in data and data['cooldown_until_date']:
+                try:
+                    data['cooldown_until_date'] = datetime.fromisoformat(data['cooldown_until_date']).date()
+                except ValueError:
+                    try:
+                        data['cooldown_until_date'] = datetime.strptime(data['cooldown_until_date'], "%Y-%m-%d").date()
+                    except:
+                        pass
+                    
             return data
         except Exception as e:
             logger.error(f"봇 상태 로드 실패: {e}")
