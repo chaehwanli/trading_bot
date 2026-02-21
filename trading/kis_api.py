@@ -428,7 +428,7 @@ class KisApi:
             logger.debug(f"[API] get_overseas_stock_balance ({exch}) Request")
             
             # 재시도 로직
-            max_retries = 3
+            max_retries = 5
             for i in range(max_retries):
                 try:
                     if i > 0: time.sleep(1)

@@ -45,17 +45,16 @@ class TradeStateManager:
                 except ValueError:
                     pass # 문자열 그대로 유지
 
-            # date 복원 (force_close_date)
-            if 'force_close_date' in data and data['force_close_date']:
-                try:
-                    data['force_close_date'] = datetime.fromisoformat(data['force_close_date']).date()
-                except ValueError:
-                    # ISO format YYYY-MM-DD might be parsed by fromisoformat as date or datetime depending on python version
-                    # simpler:
-                    try: 
-                        data['force_close_date'] = datetime.strptime(data['force_close_date'], "%Y-%m-%d").date()
-                    except:
-                        pass
+            # date 복원 (force_close_date, cooldown_until_date)
+            for date_field in ['force_close_date', 'cooldown_until_date']:
+                if date_field in data and data[date_field]:
+                    try:
+                        data[date_field] = datetime.fromisoformat(data[date_field]).date()
+                    except ValueError:
+                        try: 
+                            data[date_field] = datetime.strptime(data[date_field], "%Y-%m-%d").date()
+                        except:
+                            pass
                     
             # date 복원 (cooldown_until_date)
             if 'cooldown_until_date' in data and data['cooldown_until_date']:

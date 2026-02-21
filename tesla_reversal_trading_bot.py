@@ -70,6 +70,7 @@ class TeslaReversalTradingBot:
             self.market_timezone = pytz.timezone("US/Eastern")
         
         # [State Persistence] 저장된 상태가 있으면 복원 (자본금 및 포지션 정보)
+        self.cooldown_until_date = None
         saved_state = self.state_manager.load_state()
         if saved_state:
             if 'capital' in saved_state:
@@ -86,7 +87,7 @@ class TeslaReversalTradingBot:
                 
                 # 강제 청산 날짜 재계산 (저장된 상태 기반)
                 if self.strategy.entry_time and self.strategy.current_position:
-                    target_days = 5 if self.strategy.current_position == "LONG" else 1
+                    target_days = 3 if self.strategy.current_position == "LONG" else 1
                     # entry_time은 state_manager에서 datetime으로 변환됨
                     entry_date = self.strategy.entry_time.date()
                     self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
@@ -100,8 +101,16 @@ class TeslaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                         # [State Persistence] 쿨다운 날짜도 초기 저장
+                         "cooldown_until_date": self.cooldown_until_date
                     })
+
+        # [State Persistence] 쿨다운 상태 복원
+        if saved_state and 'cooldown_until_date' in saved_state:
+            self.cooldown_until_date = saved_state['cooldown_until_date']
+            if self.cooldown_until_date:
+                 logger.info(f"💾 저장된 STOP_LOSS 쿨다운 복원: ~ {self.cooldown_until_date}")
         
         self.scheduler = TradingScheduler()
         
@@ -245,6 +254,18 @@ class TeslaReversalTradingBot:
                    now = datetime.now(self.timezone)
                    self.cooldown_until_date = (now + timedelta(days=4)).date()
                    logger.info(f"⛔ STOP_LOSS 쿨다운 시작 -> {self.cooldown_until_date} 까지 거래 중단")
+                   
+                   # [State Persistence] 쿨다운 상태 즉시 저장
+                   self.state_manager.save_state({
+                        "current_position": None, # 청산되었으므로 None
+                        "current_etf_symbol": None,
+                        "entry_price": None,
+                        "entry_time": None,
+                        "entry_quantity": None,
+                        "capital": self.strategy.capital,
+                        "force_close_date": None,
+                        "cooldown_until_date": self.cooldown_until_date
+                    })
             
             # 최대 보유 기간 확인 (요청사항 4: 시간 -> 거래일 수 기준)
             # LOGIC SYNC: reversal_backtest.py uses trading days.
@@ -382,12 +403,12 @@ class TeslaReversalTradingBot:
                     "entry_time": self.strategy.entry_time,
                     "entry_quantity": self.strategy.entry_quantity,
                     "capital": self.strategy.capital,
-                    "force_close_date": self.forced_close_date
+                    "force_close_date": self.forced_close_date,
+                    "cooldown_until_date": self.cooldown_until_date # 유지
                 })
                 
                 # === 강제 청산 날짜 설정 ===
-                # LONG: 3 trading days, SHORT: 1 trading day
-                target_days = 5 if result['to_etf'] == self.etf_long else 1
+                target_days = 3 if result['to_etf'] == self.etf_long else 1
                 # 시장 날짜 기준으로 진입일 설정
                 entry_date = datetime.now(self.market_timezone).date()
                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
@@ -485,13 +506,14 @@ class TeslaReversalTradingBot:
             "entry_time": None,
             "entry_quantity": None,
             "capital": self.strategy.capital,
-            "force_close_date": None
+            "force_close_date": None,
+            "cooldown_until_date": self.cooldown_until_date # 유지
         })
     
     def execute_trading_strategy(self):
         """거래 전략 실행 (정규장)"""
         market_status = self._get_market_status()
-        
+
         # 요청사항 2: 정규장 시간 부터 시작
         # TEST MODE: 장 종료 후에도 테스트를 위해 AFTERMARKET/CLOSED 허용
         # DAYTIME(한국 주간)은 모의투자(테스트)에서만 허용
@@ -504,7 +526,28 @@ class TeslaReversalTradingBot:
             
         if market_status in allowed_statuses:
             logger.info(f"거래 전략 실행 중 (Status: {market_status})")
-            
+
+            # 0. 쿨다운 체크
+            if self.cooldown_until_date:
+                today = datetime.now(self.timezone).date()
+                if today <= self.cooldown_until_date:
+                    logger.info(f"⛔ STOP_LOSS 쿨다운 중입니다. (해제일: {self.cooldown_until_date} 이후) - 거래 스킵")
+                    return
+                else:
+                    logger.info(f"🟢 STOP_LOSS 쿨다운 해제됨 ({self.cooldown_until_date} 지남)")
+                    self.cooldown_until_date = None
+                    # 상태 업데이트 (쿨다운 해제 저장)
+                    self.state_manager.save_state({
+                        "current_position": self.strategy.current_position,
+                        "current_etf_symbol": self.strategy.current_etf_symbol,
+                        "entry_price": self.strategy.entry_price,
+                        "entry_time": self.strategy.entry_time,
+                        "entry_quantity": self.strategy.entry_quantity,
+                        "capital": self.strategy.capital,
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": None
+                    })
+
             # 이미 포지션이 있으면 스킵
             if self.strategy.current_position:
                 # [Request] 이미 포지션이 있어도, 강제 청산 날짜가 지났으면 모니터링 로직 태워서 청산 시도
@@ -582,12 +625,12 @@ class TeslaReversalTradingBot:
                                     "entry_time": self.strategy.entry_time,
                                     "entry_quantity": self.strategy.entry_quantity,
                                     "capital": self.strategy.capital,
-                                    "force_close_date": self.forced_close_date
+                                    "force_close_date": self.forced_close_date,
+                                    "cooldown_until_date": self.cooldown_until_date # 유지
                                 })
                                 
                                 # === 강제 청산 날짜 설정 ===
-                                # LONG: 3 trading days, SHORT: 1 trading day
-                                target_days = 5 if position_side == "LONG" else 1
+                                target_days = 3 if position_side == "LONG" else 1
                                 entry_date = datetime.now(self.market_timezone).date()
                                 self.forced_close_date = self._calculate_trading_day_limit(entry_date, target_days)
                                 logger.info(f"📅 강제 청산 날짜 설정: {self.forced_close_date} ({target_days} 거래일 후)")
@@ -707,7 +750,8 @@ class TeslaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
 
                 target_found = True
@@ -735,7 +779,8 @@ class TeslaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                        "cooldown_until_date": self.cooldown_until_date
                     })
                 
                 break
@@ -765,7 +810,8 @@ class TeslaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                         "cooldown_until_date": self.cooldown_until_date
                     })
 
                 target_found = True
@@ -793,7 +839,8 @@ class TeslaReversalTradingBot:
                         "entry_time": self.strategy.entry_time,
                         "entry_quantity": self.strategy.entry_quantity,
                         "capital": self.strategy.capital,
-                        "force_close_date": self.forced_close_date
+                        "force_close_date": self.forced_close_date,
+                         "cooldown_until_date": self.cooldown_until_date
                     })
 
                 break
