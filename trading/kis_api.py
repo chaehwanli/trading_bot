@@ -184,7 +184,7 @@ class KisApi:
         for i in range(max_retries):
             try:
                 # API 호출 간격 조절
-                if i > 0: time.sleep(1)
+                if i > 0: time.sleep(2)
                 
                 res = requests.get(url, headers=headers, params=params)
                 
@@ -355,7 +355,7 @@ class KisApi:
         for i in range(max_retries):
             try:
                 # Rate Limit 등을 고려한 미세 지연
-                time.sleep(0.2) 
+                time.sleep(2) 
                 
                 res = requests.get(url, headers=headers, params=params)
                 
@@ -431,7 +431,7 @@ class KisApi:
             max_retries = 5
             for i in range(max_retries):
                 try:
-                    if i > 0: time.sleep(1)
+                    if i > 0: time.sleep(2)
                     
                     res = requests.get(url, headers=headers, params=params)
                     
@@ -520,10 +520,10 @@ class KisApi:
         logger.debug(f"[API] get_overseas_trades Request - tr_id: {tr_id}, URL: {url}, Params: {params}")
         
         # 재시도 로직 추가
-        max_retries = 3
+        max_retries = 5
         for i in range(max_retries):
             try:
-                if i > 0: time.sleep(1)
+                if i > 0: time.sleep(2)
                 
                 res = requests.get(url, headers=headers, params=params)
                 
@@ -662,11 +662,11 @@ class KisApi:
         logger.debug(f"주문 요청 Body: {body}")
         
         # 재시도 로직 추가
-        max_retries = 3
+        max_retries = 5
         for i in range(max_retries):
             try:
                 # Rate Limit 등을 고려한 미세 지연 (기본)
-                if i > 0: time.sleep(1) 
+                if i > 0: time.sleep(2) 
 
                 logger.debug(f"[API] place_order Request - URL: {url}, Body: {json.dumps(body)}")
                 
