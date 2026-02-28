@@ -317,7 +317,7 @@ class KisApi:
         :param interval_min: 분봉 주기 (기본 60분)
         """
         exch_code = self._guess_exch_code(symbol)
-        
+
         if exch_code == "KRX":
             # 국내 주식 분봉 (주식분별주식: FHKST03010200)
             path = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
@@ -347,6 +347,7 @@ class KisApi:
                 "PINC": "1",
                 "NEXT": "",
                 "NREC": "120",
+                "FILL": "", 
                 "KEYB": "" 
             }
 
