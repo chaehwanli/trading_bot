@@ -276,6 +276,7 @@ class KisApi:
             "PINC": "1", # 전일포함
             "NEXT": "",
             "NREC": "120", # 요청 개수
+            "FILL": "", 
             "KEYB": "" 
         }
 
